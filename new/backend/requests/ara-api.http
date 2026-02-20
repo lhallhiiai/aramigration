@@ -1,0 +1,12 @@
+# ARA API – REST Client requests
+# Requires the VS Code "REST Client" extension (humao.rest-client)
+# Run individual requests with the "Send Request" link that appears above each ###
+
+@baseUrl = http://localhost:5081
+
+# ---------------------------------------------------------------------------
+# Infrastructure
+# ---------------------------------------------------------------------------
+
+### Health check – confirms the API process is up
+GET {{baseUrl}}/health

@@ -1,10 +1,27 @@
+using ARA.Api.Middleware;
 using FluentValidation;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.Identity.Web;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddMicrosoftIdentityWebApiAuthentication(builder.Configuration);
+bool isDevAuthActive = builder.Environment.IsDevelopment()
+    && string.IsNullOrWhiteSpace(builder.Configuration["AzureAd:TenantId"]);
+
+if (isDevAuthActive)
+{
+    builder.Services.AddAuthentication(DevAuthenticationHandler.SchemeName)
+        .AddScheme<AuthenticationSchemeOptions, DevAuthenticationHandler>(
+            DevAuthenticationHandler.SchemeName, configureOptions: null);
+}
+else
+{
+    builder.Services.AddMicrosoftIdentityWebApiAuthentication(builder.Configuration);
+}
+
 builder.Services.AddAuthorization();
+
+builder.Services.AddHealthChecks();
 
 builder.Services.AddControllers();
 builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
@@ -25,6 +42,7 @@ app.UseHttpsRedirection();
 app.UseCors("AraFrontend");
 app.UseAuthentication();
 app.UseAuthorization();
+app.MapHealthChecks("/health");
 app.MapControllers();
 
 app.Run();

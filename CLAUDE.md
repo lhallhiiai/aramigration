@@ -1,9 +1,10 @@
-## Project: ARA ColdFusion Migration
+# Project: ARA ColdFusion Migration
 
-### Application Overview
+## Application Overview
+
 This project is dealing with removing cold fusion from our stack, and replacing it with a new modern technological stack
 
-### Authoritative Reference Document
+## Authoritative Reference Document
 
 - The user guide for this application is located at:
   `legacy/ARAUserGuideV2.md`
@@ -23,29 +24,33 @@ This project is dealing with removing cold fusion from our stack, and replacing 
   the user guide applies and summarize the intended behavior
   before writing any code.
 
-### Target Stack
+## Target Stack
+
 - Backend: .NET 8 ASP.NET Core Web API
 - Frontend: React + TypeScript + Tailwind CSS + shadcn/ui
 - Database: Azure SQL Database
 - Hosting: Azure Container Apps
 - Auth: Microsoft Entra ID
 
-### Azure Configuration
+## Azure Configuration
+
 - Subscription: HII Commercial Sandbox
 - Region: West US 2
 - Naming convention: hii-ara-dev-[resource]
 - Resource Group: ARA-Dev-Work
 
-### Coding Conventions
+## Coding Conventions
 
 ## Non-Negotiable Rules
-These apply to every file generated. Never deviate from these without 
+
+These apply to every file generated. Never deviate from these without
 explicit instruction:
-- All code is C# (.NET 10) on the backend, TypeScript (strict mode) 
+
+- All code is C# (.NET 10) on the backend, TypeScript (strict mode)
   on the frontend. Never use JavaScript files in the frontend.
 - Never use `var` in C#. Always use explicit types or `readonly`.
 - Never use `any` in TypeScript. Always type everything explicitly.
-- Never generate code with TODO comments. If something is incomplete, 
+- Never generate code with TODO comments. If something is incomplete,
   say so in your response, not in the code.
 - Never use inline styles in React components. Tailwind classes only.
 - All public methods and classes must have XML doc comments in C#.
@@ -56,43 +61,55 @@ explicit instruction:
 ## Architecture Patterns
 
 ### Backend
+
 - Pattern: Clean Architecture with the following layer order:
   API (Controllers) → Application (Services) → Domain → Infrastructure (Repos)
 - Controllers are thin. No business logic in controllers — ever.
-- Use the Repository pattern. Every repository has an interface in the 
+- Use the Repository pattern. Every repository has an interface in the
   Domain layer and an implementation in the Infrastructure layer.
-- Data access: Dapper only. No Entity Framework. Raw SQL with 
+- Data access: Dapper only. No Entity Framework. Raw SQL with
   strongly-typed parameters.
 - Never use string interpolation in SQL queries. Always parameterized.
-- Return types: Use a Result<T> pattern for all service methods. 
+- Return types: Use a Result\<T\> pattern for all service methods.
   Never throw exceptions for business rule failures.
 - Example Result usage:
+
+  ```csharp
   // Correct
   return Result<UserDto>.Failure("User not found");
   // Incorrect
   throw new NotFoundException("User not found");
+  ```
+
 - Never use inline SQL always use stored procedures and create one if necessary
 
 ### Frontend
-- Component pattern: One component per file. Filename matches 
+
+- Component pattern: One component per file. Filename matches
   component name exactly (PascalCase).
 - All components are functional. No class components.
-- Props interfaces are defined in the same file as the component, 
+- Props interfaces are defined in the same file as the component,
   named [ComponentName]Props.
 - Example:
+
+  ```typescript
   // Correct
   interface UserCardProps { userId: string; displayName: string; }
   export function UserCard({ userId, displayName }: UserCardProps) {}
   // Incorrect
   export function UserCard(props: any) {}
-- State management: TanStack Query for all server state. 
+  ```
+
+- State management: TanStack Query for all server state.
   Zustand for global client state. useState for local UI state only.
-- Never fetch data directly in a component. Always use a custom 
+- Never fetch data directly in a component. Always use a custom
   hook named use[Resource] (e.g., useUsers, useOrderDetail).
 
 ## File & Folder Structure
 
-### Backend
+### Backend Structure
+
+```text
 /src
   /Api
     /Controllers
@@ -108,8 +125,11 @@ explicit instruction:
   /Infrastructure
     /Repositories (implementations)
     /Database
+```
 
-### Frontend
+### Frontend Structure
+
+```text
 /src
   /components
     /ui          ← shadcn/ui base components, never modified directly
@@ -119,8 +139,10 @@ explicit instruction:
   /services      ← API call functions (not hooks, just fetch wrappers)
   /types         ← shared TypeScript interfaces and types
   /store         ← Zustand stores
+```
 
 ## Naming Conventions
+
 - C# classes: PascalCase
 - C# private fields: _camelCase with underscore prefix
 - C# interfaces: IPascalCase
@@ -131,21 +153,23 @@ explicit instruction:
 - API endpoints: kebab-case nouns, plural (/api/users, /api/order-items)
 - Database tables: PascalCase singular (User, OrderItem)
 - Database columns: PascalCase (UserId, CreatedAt)
-- Azure resources: [company]-[app]-[env]-[resource-type] 
+- Azure resources: [company]-[app]-[env]-[resource-type]
   e.g. acme-crm-prod-api
 
 ## Testing Conventions
+
 - Framework: xUnit (backend), Vitest + React Testing Library (frontend)
 - Every service method gets a test class named [Service]Tests
 - Test method naming: MethodName_StateUnderTest_ExpectedBehavior
   e.g. GetUser_WithInvalidId_ReturnsFailureResult
-- Always test: happy path, null/empty inputs, boundary conditions, 
+- Always test: happy path, null/empty inputs, boundary conditions,
   and business rule violations
 - No magic numbers or strings in tests. Use named constants.
-- Mock only at the repository layer. Never mock services in 
+- Mock only at the repository layer. Never mock services in
   service-to-service tests.
 
 ## Error Handling
+
 - Backend: Global exception middleware handles all unhandled exceptions.
   Never catch and swallow exceptions silently.
 - All caught exceptions must be logged with ILogger before handling.
@@ -154,6 +178,7 @@ explicit instruction:
   Never silently fail a data fetch.
 
 ## What to Always Include Without Being Asked
+
 - Input validation on every API endpoint using FluentValidation
 - Cancellation token parameters on all async methods
 - ILogger injection in every service and controller
@@ -162,6 +187,7 @@ explicit instruction:
 - Null checks at all public API boundaries
 
 ## What to Never Include Without Being Asked
+
 - Logging frameworks other than Microsoft.Extensions.Logging
 - Any npm package not already in package.json
 - Docker configuration changes
@@ -170,31 +196,32 @@ explicit instruction:
 - Authentication/authorization changes
 
 ### Key Business Domain Terms
-[List any domain-specific terms so Claude understands 
-your business context without re-explaining every session]
 
-### Current Progress
-[Update this as you complete phases so every new 
-conversation starts knowing where you are]
+[List any domain-specific terms so Claude understands
+your business context without re-explaining every session]
 
 ## Git & Source Control Directives
 
-### Non-Negotiable Rules
+### Git Non-Negotiable Rules
+
 - Never commit directly to `main` or `develop`. Always work on a feature branch.
 - Never commit secrets, connection strings, API keys, or passwords. Ever.
 - Never force push to any shared branch.
 - Never commit commented-out code. Delete it — git history preserves it if needed.
-- Never commit files that belong in .gitignore (build artifacts, node_modules, 
+- Never commit files that belong in .gitignore (build artifacts, node_modules,
   bin/, obj/, .env files).
-- Always confirm with me before running any destructive git command 
+- Always confirm with me before running any destructive git command
   (reset --hard, rebase, branch deletion).
 - Never commit auto-generated files unless explicitly told to.
 
 ### Branch Naming Convention
+
 Pattern: [type]/[short-description]
+
 Use kebab-case for the description. Keep it under 50 characters.
 
 Types and when to use them:
+
 - feature/   → new functionality being converted from ColdFusion
 - fix/        → bug fix in already-converted code
 - data/       → database migration scripts or schema changes
@@ -205,79 +232,99 @@ Types and when to use them:
 - chore/      → dependency updates, config changes, tooling
 
 Examples:
-  feature/user-authentication
-  feature/order-management-api
-  data/add-customer-indexes
-  infra/container-apps-setup
-  fix/order-total-calculation
+
+```text
+feature/user-authentication
+feature/order-management-api
+data/add-customer-indexes
+infra/container-apps-setup
+fix/order-total-calculation
+```
 
 ### Commit Message Format
+
 Follow Conventional Commits specification exactly.
 
 Structure:
-  <type>(<scope>): <short description>
-  
-  [optional body]
-  
-  [optional footer]
+
+```text
+<type>(<scope>): <short description>
+
+[optional body]
+
+[optional footer]
+```
 
 Rules:
+
 - First line must be 72 characters or less
 - Description is lowercase, no period at the end
 - Use imperative mood ("add" not "added", "fix" not "fixed")
 - Body explains WHAT changed and WHY, not HOW
-- Always reference what ColdFusion file or feature this replaces 
+- Always reference what ColdFusion file or feature this replaces
   in the body when applicable
 
 Types:
-  feat:     new feature or converted ColdFusion functionality
-  fix:      bug fix
-  data:     database migration or schema change
-  infra:    Azure infrastructure change
-  refactor: code change that neither fixes a bug nor adds a feature
-  test:     adding or updating tests
-  docs:     documentation changes
-  chore:    maintenance tasks, dependency updates
-  style:    formatting only, no logic change
+
+```text
+feat:     new feature or converted ColdFusion functionality
+fix:      bug fix
+data:     database migration or schema change
+infra:    Azure infrastructure change
+refactor: code change that neither fixes a bug nor adds a feature
+test:     adding or updating tests
+docs:     documentation changes
+chore:    maintenance tasks, dependency updates
+style:    formatting only, no logic change
+```
 
 Scope examples (use the feature area):
-  auth, users, orders, products, reporting, api, frontend, db, azure
+
+`auth, users, orders, products, reporting, api, frontend, db, azure`
 
 Examples:
-  feat(orders): add order summary endpoint
-  
-  Converts OrderSummary.cfm to OrdersController and OrderService.
-  Implements GET /api/orders/{id}/summary returning OrderSummaryDto.
-  
-  Replaces: /legacy/OrderSummary.cfm
 
-  ---
+```text
+feat(orders): add order summary endpoint
 
-  data(users): add missing indexes to user search queries
-  
-  Adds composite index on (LastName, FirstName) and single index
-  on Email column based on query patterns found in UserSearch.cfm.
-  
-  Migration: 004_add_user_search_indexes.sql
+Converts OrderSummary.cfm to OrdersController and OrderService.
+Implements GET /api/orders/{id}/summary returning OrderSummaryDto.
 
-  ---
+Replaces: /legacy/OrderSummary.cfm
 
-  fix(auth): correct token expiry calculation
-  
-  Token was expiring immediately due to UTC/local time mismatch.
-  ColdFusion original had same bug — this is not a regression.
+---
+
+data(users): add missing indexes to user search queries
+
+Adds composite index on (LastName, FirstName) and single index
+on Email column based on query patterns found in UserSearch.cfm.
+
+Migration: 004_add_user_search_indexes.sql
+
+---
+
+fix(auth): correct token expiry calculation
+
+Token was expiring immediately due to UTC/local time mismatch.
+ColdFusion original had same bug — this is not a regression.
+```
 
 ### When to Commit
+
 - Commit after each logical unit of work is complete and tests pass
 - Never commit broken code to any branch
 - One concern per commit — do not bundle unrelated changes
 - If a session produces multiple distinct changes, commit them separately
 - Always run the test suite before committing:
-  dotnet test                    # backend
-  npm run test                   # frontend
-  npm run lint                   # frontend lint check
+
+```bash
+dotnet test                    # backend
+npm run test                   # frontend
+npm run lint                   # frontend lint check
+```
 
 ### Pull Request Rules
+
 - Every feature branch requires a PR before merging to develop
 - PR title follows the same format as commit messages
 - PR description must include:
@@ -287,86 +334,99 @@ Examples:
   - Screenshots for any UI changes
 
 PR description template to use:
-  ## What This Does
-  [Plain English description]
-  
-  ## ColdFusion Replacement
-  Replaces: [filename(s)]
-  Feature inventory item: [item name from FEATURE_INVENTORY.md]
-  
-  ## Testing
-  - [ ] Unit tests pass
-  - [ ] Integration tests pass
-  - [ ] Manually tested: [describe what you tested]
-  
-  ## Notes
-  [Anything else reviewers should know]
+
+```markdown
+## What This Does
+[Plain English description]
+
+## ColdFusion Replacement
+Replaces: [filename(s)]
+Feature inventory item: [item name from FEATURE_INVENTORY.md]
+
+## Testing
+- [ ] Unit tests pass
+- [ ] Integration tests pass
+- [ ] Manually tested: [describe what you tested]
+
+## Notes
+[Anything else reviewers should know]
+```
 
 ### .gitignore Requirements
+
 Always ensure these are ignored and never committed:
-  # Secrets and environment
-  .env
-  .env.*
-  appsettings.Development.json
-  appsettings.Local.json
-  
-  # Build output
-  bin/
-  obj/
-  dist/
-  build/
-  .next/
-  
-  # Dependencies
-  node_modules/
-  
-  # IDE and OS
-  .vs/
-  .vscode/settings.json
-  .DS_Store
-  Thumbs.db
-  
-  # Azure and cloud
-  .azure/
-  terraform.tfstate
-  terraform.tfstate.backup
-  *.tfvars
-  
-  # Logs
-  *.log
-  logs/
+
+```gitignore
+# Secrets and environment
+.env
+.env.*
+appsettings.Development.json
+appsettings.Local.json
+
+# Build output
+bin/
+obj/
+dist/
+build/
+.next/
+
+# Dependencies
+node_modules/
+
+# IDE and OS
+.vs/
+.vscode/settings.json
+.DS_Store
+Thumbs.db
+
+# Azure and cloud
+.azure/
+terraform.tfstate
+terraform.tfstate.backup
+*.tfvars
+
+# Logs
+*.log
+logs/
+```
 
 ### Tagging & Releases
+
 - Use semantic versioning: v[MAJOR].[MINOR].[PATCH]
 - Tag only from main after a successful deployment
 - MAJOR: breaking changes or major milestone completions
 - MINOR: new feature module fully converted and deployed
 - PATCH: bug fixes and small improvements
 - Annotated tags only:
-  git tag -a v1.2.0 -m "Complete order management module conversion"
+  `git tag -a v1.2.0 -m "Complete order management module conversion"`
 
 ### Migration-Specific Git Conventions
-Since this is a migration project, always track what legacy code 
+
+Since this is a migration project, always track what legacy code
 each commit replaces:
 
-- Keep a /legacy folder in the repo containing read-only copies 
-  of the original ColdFusion files for reference. Never modify 
+- Keep a /legacy folder in the repo containing read-only copies
+  of the original ColdFusion files for reference. Never modify
   these files — they are the source of truth for intended behavior.
-- When a ColdFusion file is fully converted and tested, add a 
+- When a ColdFusion file is fully converted and tested, add a
   comment at the top of the legacy file:
-  <!--- MIGRATED: Replaced by [NewFile.cs] on [date] --->
-- Do not delete legacy files until the full cutover is complete 
+  `<!--- MIGRATED: Replaced by [NewFile.cs] on [date] --->`
+- Do not delete legacy files until the full cutover is complete
   and the new system is stable in production.
 
 ### Commands Claude Code Should Always Suggest (Never Run Automatically)
+
 These commands must be confirmed by me before execution:
-  git reset
-  git rebase
-  git push --force or --force-with-lease
-  git branch -d or -D
-  git clean -fd
-  git stash drop
-  Any git command that modifies historyƒ
+
+```bash
+git reset
+git rebase
+git push --force or --force-with-lease
+git branch -d or -D
+git clean -fd
+git stash drop
+Any git command that modifies historyƒ
+```
 
 ---
 
@@ -701,3 +761,39 @@ features.
 12. **Document upload file size and count limits are absent.**
     No maximum file size or maximum number of uploads per stage is stated.
     Confirm before building upload validation.
+
+---
+
+## Current Progress
+
+### Phase 1 — Foundation
+
+- [x] **Toolchain installed** — .NET 10.0.103 SDK, Node.js 24 (via Homebrew)
+- [x] **Solution scaffolded** — `new/backend/ARA.slnx` with five projects:
+  - `ARA.Api` — ASP.NET Core Web API (Microsoft.Identity.Web, FluentValidation.AspNetCore)
+  - `ARA.Application` — Services and DTOs; `Result<T>` pattern in `Common/Result.cs`
+  - `ARA.Domain` — Entities and repository interfaces (no external dependencies)
+  - `ARA.Infrastructure` — Repository implementations (Dapper, Microsoft.Data.SqlClient)
+  - `ARA.Application.Tests` — xUnit test project (Moq, FluentAssertions)
+- [x] **Frontend scaffolded** — `new/frontend/` with Vite + React + TypeScript strict
+  - Tailwind CSS v4 via `@tailwindcss/vite` plugin
+  - shadcn/ui v3 initialized, design tokens in `src/index.css`
+  - Folder structure: `components/ui/`, `hooks/`, `pages/`, `services/`, `types/`, `store/`
+  - Path alias `@/` → `src/`
+- [x] **`.gitignore`** created at repo root covering build artifacts, secrets, node_modules
+- [x] **Verification passed** — `dotnet build` (0 errors), `dotnet test` (1 passed), `npm run build` (success)
+
+### Phase 1 — Remaining
+
+- [ ] Database connectivity — Dapper connection factory, stored procedure conventions
+- [ ] Authentication — Entra ID configuration and middleware
+- [ ] Core domain entities — `Ara`, `User`, `Role`, `Status`, `Category`
+
+### Phase 2 — ARA Workflow (Not Started)
+
+ARA creation → PM tab → Contract Administrator tab → Controller tab → Approval chain
+
+### Resolved Ambiguities
+
+None resolved yet. See User Guide Reference → Ambiguities and Gaps for the full list.
+Prioritize items 1, 2, 7, and 8 before starting Phase 2 approval chain work.

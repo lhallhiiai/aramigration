@@ -1,0 +1,28 @@
+What is in the approval chain? id_status=6
+
+Based on the amount and Risk category, what is the approval chain?
+
+SELECT     ara.id_ara, ara.id_cat, category.riskLevel, ara.amountTotal, thresholds.low_thresh, thresholds.high_thresh, 
+           jobTitle.title, jobTitle.appOrder, thresholds.id_job
+			FROM         
+
+			ara INNER JOIN category ON ara.id_cat = category.id_cat 
+			INNER JOIN thresholds ON category.riskLevel = thresholds.riskLevel 
+			INNER JOIN jobTitle ON thresholds.id_job = jobTitle.id_job
+			where ara.id_status=6     -- In the approval chain
+			and jobtitle.id_job > 3   -- 1,2,3 are PM, contracts, controller and not considered in the approval chain
+			and jobtitle.id_job NOT in (16,17,21,22,23)  -- these are non-approver job IDs
+			
+			and thresholds.low_thresh <= ara.amountTotal
+			
+			Order by ara.id_ara,id_job
+			
+			
+Is this persons job_id in the list of approvals that are required
+(Do I find #session.id_job# in the list of what is returned)
+
+Is this person in the same sector, group, and [maybe division] as the ara
+[ARA SGOD found in v_ara, USERS SGOD availble in session variables]
+
+Check the approval log to see if this job level has already approved this ara
+[could still be in approval cahin, but waiting for approval after words]

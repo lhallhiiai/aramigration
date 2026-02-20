@@ -1,0 +1,20 @@
+
+
+<cfif isdefined("SumCost.COSTSUBTOTAL") and isdefined("SumFee.FEESUBTOTAL") and id_cat NEQ 10>
+	<cfset allowedAmt = amounttotal - SumCost.COSTSUBTOTAL - SumFee.FEESUBTOTAL>
+
+<!--- Notes on Early Starts (id_cat=10): CCS (id_job=13) comes back in after the ARA is approved (id_status=12),
+	      and provides CLIN information. The CLINs need to be manually put in [not autocomplate], because there
+		  is not Jamis Number from which to derive Clins. --->   
+	
+<cfelseif id_cat EQ 10 and session.id_job EQ 13 and id_status EQ 12>
+	<cfquery name="getESClin" datasource="#Application.dsn#">
+		Select * from v_clin 
+		where id_ara=#id_ara#
+	</cfquery>
+    <cfset allowedAmt = #getESClin.ara_total# - #getESClin.clin_total#>
+	
+<cfelse><!--- Not Early Start, Not CCS, Not Approved --->
+	<cfset allowedAmt=#amountTotal#>
+</cfif>
+<input type="hidden" name="allowedAmt" value="#allowedAmt#">

@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ARA.Api/ARA.Api.csproj" />
+    <Project Path="src/ARA.Application/ARA.Application.csproj" />
+    <Project Path="src/ARA.Domain/ARA.Domain.csproj" />
+    <Project Path="src/ARA.Infrastructure/ARA.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ARA.Application.Tests/ARA.Application.Tests.csproj" />
+  </Folder>
+</Solution>

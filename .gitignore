@@ -1,0 +1,37 @@
+# Secrets and environment
+.env
+.env.*
+appsettings.Development.json
+appsettings.Local.json
+
+# .NET build output
+new/backend/**/bin/
+new/backend/**/obj/
+
+# Frontend build output
+new/frontend/dist/
+new/frontend/build/
+
+# Frontend dependencies
+new/frontend/node_modules/
+
+# IDE and OS
+.vs/
+.vscode/settings.json
+.DS_Store
+Thumbs.db
+*.user
+
+# Azure and cloud
+.azure/
+terraform.tfstate
+terraform.tfstate.backup
+*.tfvars
+
+# Logs
+*.log
+logs/
+
+# NuGet
+*.nupkg
+.nuget/

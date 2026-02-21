@@ -280,7 +280,9 @@ style:    formatting only, no logic change
 
 Scope examples (use the feature area):
 
-`auth, users, orders, products, reporting, api, frontend, db, azure`
+`auth, users, orders, products, reporting, api, frontend, db, azure, config`
+
+Use `config` for changes to CLAUDE.md, project configuration files, or tooling settings.
 
 Examples:
 

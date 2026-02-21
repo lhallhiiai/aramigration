@@ -194,4 +194,29 @@ public sealed class AraRepository : IAraRepository
             cancellationToken: cancellationToken);
         await connection.ExecuteAsync(cmd);
     }
+
+    /// <inheritdoc/>
+    public async Task UpdateStatusAsync(
+        int araId,
+        AraStatus newStatus,
+        int revision,
+        DateTime? cancelledAt = null,
+        DateTime? negatedAt = null,
+        CancellationToken cancellationToken = default)
+    {
+        using IDbConnection connection = await _connectionFactory.CreateAsync(cancellationToken);
+        CommandDefinition cmd = new(
+            commandText: "usp_AraUpdateStatus",
+            parameters: new
+            {
+                AraId       = araId,
+                StatusId    = (int)newStatus,
+                Revision    = revision,
+                CancelledAt = cancelledAt,
+                NegatedAt   = negatedAt,
+            },
+            commandType: CommandType.StoredProcedure,
+            cancellationToken: cancellationToken);
+        await connection.ExecuteAsync(cmd);
+    }
 }

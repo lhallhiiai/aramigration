@@ -27,6 +27,8 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<IClinEntryRepository, ClinEntryRepository>();
         services.AddScoped<ICategoryRepository, CategoryRepository>();
         services.AddScoped<IJobTitleRepository, JobTitleRepository>();
+        services.AddScoped<IAraPmSectionRepository, AraPmSectionRepository>();
+        services.AddScoped<IAraControllerSectionRepository, AraControllerSectionRepository>();
 
         return services;
     }

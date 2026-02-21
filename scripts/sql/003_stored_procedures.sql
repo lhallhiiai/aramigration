@@ -775,5 +775,172 @@ BEGIN
 END
 GO
 
+-- =============================================================================
+-- ARA STATUS UPDATE (workflow transitions)
+-- =============================================================================
+
+CREATE OR ALTER PROCEDURE dbo.usp_AraUpdateStatus
+    @AraId       INT,
+    @StatusId    INT,
+    @Revision    INT,
+    @CancelledAt DATETIME2 = NULL,
+    @NegatedAt   DATETIME2 = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    UPDATE dbo.Ara
+    SET
+        StatusId    = @StatusId,
+        Revision    = @Revision,
+        CancelledAt = @CancelledAt,
+        NegatedAt   = @NegatedAt,
+        UpdatedAt   = GETUTCDATE()
+    WHERE AraId = @AraId;
+END
+GO
+
+-- =============================================================================
+-- PM SECTION PROCEDURES
+-- =============================================================================
+
+CREATE OR ALTER PROCEDURE dbo.usp_AraPmSectionGetByAraId
+    @AraId INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT
+        AraPmSectionId, AraId,
+        FundsInAdvance, ContractDefinization, PertinentInformation,
+        WorkStarted, Consequence, CurrentStatus, ChangeInScope,
+        ActionToClear, EarlyStartNecessary, OtherNecessary
+    FROM dbo.AraPmSection
+    WHERE AraId = @AraId;
+END
+GO
+
+CREATE OR ALTER PROCEDURE dbo.usp_AraPmSectionUpsert
+    @AraId                INT,
+    @FundsInAdvance       NVARCHAR(MAX) = NULL,
+    @ContractDefinization NVARCHAR(MAX) = NULL,
+    @PertinentInformation NVARCHAR(MAX) = NULL,
+    @WorkStarted          NVARCHAR(MAX) = NULL,
+    @Consequence          NVARCHAR(MAX) = NULL,
+    @CurrentStatus        NVARCHAR(MAX) = NULL,
+    @ChangeInScope        NVARCHAR(MAX) = NULL,
+    @ActionToClear        NVARCHAR(MAX) = NULL,
+    @EarlyStartNecessary  NVARCHAR(MAX) = NULL,
+    @OtherNecessary       NVARCHAR(MAX) = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    MERGE dbo.AraPmSection AS target
+    USING (SELECT @AraId AS AraId) AS source (AraId)
+    ON target.AraId = source.AraId
+    WHEN MATCHED THEN
+        UPDATE SET
+            FundsInAdvance       = @FundsInAdvance,
+            ContractDefinization = @ContractDefinization,
+            PertinentInformation = @PertinentInformation,
+            WorkStarted          = @WorkStarted,
+            Consequence          = @Consequence,
+            CurrentStatus        = @CurrentStatus,
+            ChangeInScope        = @ChangeInScope,
+            ActionToClear        = @ActionToClear,
+            EarlyStartNecessary  = @EarlyStartNecessary,
+            OtherNecessary       = @OtherNecessary
+    WHEN NOT MATCHED THEN
+        INSERT (
+            AraId, FundsInAdvance, ContractDefinization, PertinentInformation,
+            WorkStarted, Consequence, CurrentStatus, ChangeInScope,
+            ActionToClear, EarlyStartNecessary, OtherNecessary
+        )
+        VALUES (
+            @AraId, @FundsInAdvance, @ContractDefinization, @PertinentInformation,
+            @WorkStarted, @Consequence, @CurrentStatus, @ChangeInScope,
+            @ActionToClear, @EarlyStartNecessary, @OtherNecessary
+        );
+END
+GO
+
+-- =============================================================================
+-- CONTROLLER SECTION PROCEDURES
+-- =============================================================================
+
+CREATE OR ALTER PROCEDURE dbo.usp_AraControllerSectionGetByAraId
+    @AraId INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT
+        AraControllerSectionId, AraId, ControllerId,
+        InterestImpact, BurnRate,
+        TotalCost, TotalFee,
+        IncurredCost, IncurredFee,
+        Company
+    FROM dbo.AraControllerSection
+    WHERE AraId = @AraId;
+END
+GO
+
+CREATE OR ALTER PROCEDURE dbo.usp_AraControllerSectionUpsert
+    @AraId         INT,
+    @ControllerId  INT           = NULL,
+    @InterestImpact FLOAT        = NULL,
+    @BurnRate      FLOAT         = NULL,
+    @IncurredCost  FLOAT         = NULL,
+    @IncurredFee   FLOAT         = NULL,
+    @Company       NVARCHAR(10)  = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    -- Auto-calculate totals from current CLIN entries for this ARA.
+    DECLARE @TotalCost FLOAT = (
+        SELECT ISNULL(SUM(CAST(CostFunding AS FLOAT)), 0)
+        FROM dbo.Clin
+        WHERE AraId = @AraId AND IsNegated = 0
+    );
+
+    DECLARE @TotalFee FLOAT = (
+        SELECT ISNULL(SUM(CAST(FeeFunding AS FLOAT)), 0)
+        FROM dbo.Clin
+        WHERE AraId = @AraId AND IsNegated = 0
+    );
+
+    MERGE dbo.AraControllerSection AS target
+    USING (SELECT @AraId AS AraId) AS source (AraId)
+    ON target.AraId = source.AraId
+    WHEN MATCHED THEN
+        UPDATE SET
+            ControllerId   = ISNULL(@ControllerId, target.ControllerId),
+            InterestImpact = @InterestImpact,
+            BurnRate       = @BurnRate,
+            TotalCost      = @TotalCost,
+            TotalFee       = @TotalFee,
+            IncurredCost   = @IncurredCost,
+            IncurredFee    = @IncurredFee,
+            Company        = @Company
+    WHEN NOT MATCHED THEN
+        INSERT (
+            AraId, ControllerId,
+            InterestImpact, BurnRate,
+            TotalCost, TotalFee,
+            IncurredCost, IncurredFee,
+            Company
+        )
+        VALUES (
+            @AraId, @ControllerId,
+            @InterestImpact, @BurnRate,
+            @TotalCost, @TotalFee,
+            @IncurredCost, @IncurredFee,
+            @Company
+        );
+END
+GO
+
 PRINT 'Stored procedures migration 003_stored_procedures.sql complete.';
 GO

@@ -57,10 +57,8 @@ WHEN NOT MATCHED THEN
     INSERT (JobTitleId, Title, AppOrder, Description, IsInactive)
     VALUES (source.JobTitleId, source.Title, source.AppOrder, source.Description, source.IsInactive);
 GO
-
--- Re-seed identity so new inserts don't conflict
-DBCC CHECKIDENT ('dbo.JobTitle', RESEED, 100);
-GO
+-- Note: JobTitle has no identity column (IDs are fixed legacy values that drive approval routing).
+-- DBCC CHECKIDENT does not apply here.
 
 -- =============================================================================
 -- Status  (IDs align with ARA.Domain.Enums.AraStatus)

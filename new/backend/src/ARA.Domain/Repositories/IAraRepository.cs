@@ -72,4 +72,23 @@ public interface IAraRepository
     /// <param name="ara">The updated ARA data.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     Task UpdateAsync(Ara ara, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Updates only the status, revision, and optional lifecycle timestamps of an ARA.
+    /// Used by all workflow transition methods (Submit, Approve, Reject, Cancel, Negate)
+    /// to avoid rewriting all ARA fields on every state change.
+    /// </summary>
+    /// <param name="araId">The ARA primary key.</param>
+    /// <param name="newStatus">The new lifecycle status.</param>
+    /// <param name="revision">The revision counter value (incremented on rejection).</param>
+    /// <param name="cancelledAt">Set to the cancellation timestamp when transitioning to Cancelled; otherwise null.</param>
+    /// <param name="negatedAt">Set to the negation timestamp when transitioning to Negated; otherwise null.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    Task UpdateStatusAsync(
+        int araId,
+        AraStatus newStatus,
+        int revision,
+        DateTime? cancelledAt = null,
+        DateTime? negatedAt = null,
+        CancellationToken cancellationToken = default);
 }

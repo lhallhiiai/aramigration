@@ -1,4 +1,7 @@
+using ARA.Api;
 using ARA.Api.Middleware;
+using ARA.Application;
+using ARA.Application.Users;
 using ARA.Infrastructure;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication;
@@ -24,7 +27,10 @@ builder.Services.AddAuthorization();
 
 builder.Services.AddHealthChecks();
 
+builder.Services.AddHttpContextAccessor();
 builder.Services.AddInfrastructure();
+builder.Services.AddApplicationServices();
+builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 
 builder.Services.AddControllers();
 builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);

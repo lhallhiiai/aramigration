@@ -34,7 +34,7 @@ This project is dealing with removing cold fusion from our stack, and replacing 
 
 ## Azure Configuration
 
-- Subscription: HII Commercial Sandbox
+- Subscription: Azure subscription 1
 - Region: West US 2
 - Naming convention: hii-ara-dev-[resource]
 - Resource Group: ARA-Dev-Work

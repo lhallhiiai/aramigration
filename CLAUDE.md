@@ -263,6 +263,11 @@ Rules:
 - Body explains WHAT changed and WHY, not HOW
 - Always reference what ColdFusion file or feature this replaces
   in the body when applicable
+- Every commit message must end with these trailer lines:
+
+  ```text
+  Co-Authored-By: Louis Hall <louis.hall@hii.com>
+  ```
 
 Types:
 

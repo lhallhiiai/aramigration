@@ -8,5 +8,44 @@
 # Infrastructure
 # ---------------------------------------------------------------------------
 
-### Health check – confirms the API process is up
+### Health check – confirms the API process is up (no auth required)
 GET {{baseUrl}}/health
+
+# ---------------------------------------------------------------------------
+# Smoke tests – run in order after health check passes
+# Dev auth bypass is active when ASPNETCORE_ENVIRONMENT=Development and TenantId is empty.
+# No Authorization header is needed locally.
+# ---------------------------------------------------------------------------
+
+### SMOKE 1: Categories – confirms auth bypass + DB round-trip
+GET {{baseUrl}}/api/categories
+
+### SMOKE 2: Job titles – second reference table
+GET {{baseUrl}}/api/job-titles
+
+### SMOKE 3: Current user – confirms dev user exists in the Users table
+# Expected: 200 with dev@local.dev user object
+# If 404, run the seed INSERT in scripts/sql/002_seed_data.sql for the dev user
+GET {{baseUrl}}/api/users/me
+
+# ---------------------------------------------------------------------------
+# ARA workflow (use after smoke tests pass)
+# ---------------------------------------------------------------------------
+
+### List all active ARAs
+GET {{baseUrl}}/api/aras
+
+### Create a new ARA (adjust IDs to match seeded data)
+POST {{baseUrl}}/api/aras
+Content-Type: application/json
+
+{
+  "categoryId": 1,
+  "programManagerId": 1,
+  "contractAdministratorId": 1,
+  "controllerId": 1,
+  "isEarlyStart": false,
+  "contractNumber": "TEST-001",
+  "amountTotal": 100000.00,
+  "description": "Smoke test ARA"
+}

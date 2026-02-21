@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ARA.Application\ARA.Application.csproj" />
+    <ProjectReference Include="..\ARA.Infrastructure\ARA.Infrastructure.csproj" />
   </ItemGroup>
 
   <ItemGroup>

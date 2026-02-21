@@ -1,4 +1,5 @@
 using ARA.Api.Middleware;
+using ARA.Infrastructure;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Identity.Web;
@@ -22,6 +23,8 @@ else
 builder.Services.AddAuthorization();
 
 builder.Services.AddHealthChecks();
+
+builder.Services.AddInfrastructure();
 
 builder.Services.AddControllers();
 builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);

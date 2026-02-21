@@ -4,10 +4,11 @@ namespace ARA.Domain.Entities;
 /// Represents a single Contract Line Item Number (CLIN) entry on the Controller's
 /// CLIN Worksheet. Required for Non-Early Start ARAs only. Each CLIN identifier
 /// from JAMIS may be used at most once per ARA.
+/// Maps to the legacy <c>clins</c> table (new name: <c>Clin</c>).
 /// </summary>
 public sealed class ClinEntry
 {
-    /// <summary>Gets the unique identifier for this CLIN entry (primary key).</summary>
+    /// <summary>Gets the unique identifier for this CLIN entry (primary key). Maps to <c>ClinId</c>.</summary>
     public int ClinEntryId { get; init; }
 
     /// <summary>Gets the ID of the ARA this CLIN entry belongs to.</summary>
@@ -19,13 +20,13 @@ public sealed class ClinEntry
     /// </summary>
     public string ClinNumber { get; init; } = string.Empty;
 
-    /// <summary>Gets the CLIN description as retrieved from JAMIS.</summary>
+    /// <summary>Gets the CLIN description as retrieved from JAMIS. Maps to legacy <c>Description</c>.</summary>
     public string? ClinDescription { get; init; }
 
-    /// <summary>Gets the cost amount allocated to this CLIN by the Controller.</summary>
+    /// <summary>Gets the cost funding amount allocated to this CLIN. Maps to legacy <c>CostFunding</c>.</summary>
     public decimal Cost { get; init; }
 
-    /// <summary>Gets the fee amount allocated to this CLIN by the Controller.</summary>
+    /// <summary>Gets the fee funding amount allocated to this CLIN. Maps to legacy <c>FeeFunding</c>.</summary>
     public decimal Fee { get; init; }
 
     /// <summary>

@@ -213,6 +213,8 @@ your business context without re-explaining every session]
 - Always confirm with me before running any destructive git command
   (reset --hard, rebase, branch deletion).
 - Never commit auto-generated files unless explicitly told to.
+- Never commit automatically after editing files. Always wait for an explicit
+  "commit this" instruction before running any git commit command.
 
 ### Branch Naming Convention
 

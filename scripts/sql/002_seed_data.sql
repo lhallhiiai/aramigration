@@ -189,5 +189,18 @@ BEGIN
 END
 GO
 
+-- =============================================================================
+-- Dev User  (matches DevAuthenticationHandler claim "dev-user-00000000")
+-- Allows local development without Azure Entra ID.
+-- =============================================================================
+IF NOT EXISTS (SELECT 1 FROM dbo.[User] WHERE EntraObjectId = N'dev-user-00000000')
+BEGIN
+    INSERT INTO dbo.[User]
+        (EntraObjectId, DisplayName, FirstName, LastName, Email, RoleId, JobTitleId, IsInactive)
+    VALUES
+        (N'dev-user-00000000', N'Dev User', N'Dev', N'User', N'dev@local.dev', 1, 1, 0);
+END
+GO
+
 PRINT 'Seed data migration 002_seed_data.sql complete.';
 GO

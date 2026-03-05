@@ -146,6 +146,20 @@ $ErrorActionPreference = 'Stop'
 # ---------------------------------------------------------------------------
 if (-not (Get-Module -ListAvailable -Name SqlServer)) {
     Write-Host "SqlServer PowerShell module not found. Installing for current user..."
+
+    # Ensure NuGet provider is available at user scope (avoids admin requirement)
+    if (-not (Get-PackageProvider -Name NuGet -ListAvailable -ErrorAction SilentlyContinue |
+              Where-Object { $_.Version -ge [version]'2.8.5.201' })) {
+        Write-Host "  Installing NuGet package provider..."
+        Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force -Scope CurrentUser | Out-Null
+    }
+
+    # Trust PSGallery to avoid interactive confirmation prompts
+    $psGallery = Get-PSRepository -Name PSGallery -ErrorAction SilentlyContinue
+    if ($psGallery -and $psGallery.InstallationPolicy -ne 'Trusted') {
+        Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+    }
+
     Install-Module -Name SqlServer -Force -AllowClobber -Scope CurrentUser
 }
 

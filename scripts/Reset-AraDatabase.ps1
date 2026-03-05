@@ -11,17 +11,30 @@
     This is the "factory reset" for local development. Run it any time
     you want a fresh start.
 
-    Prerequisites:
-      - Run 'az login' first (Azure AD token auth).
-      - Requires the SqlServer PowerShell module (auto-installed if missing).
+    Authentication options:
+      - ConnectionString parameter: Use any valid SQL connection string
+        (SQL Auth, Windows Auth, etc.) — no Azure CLI needed.
+      - ServerName + DatabaseName (default): Uses Azure AD Default
+        (Managed Identity in Azure; your logged-in az CLI account locally).
+        Run 'az login' first.
+
+    Requires the SqlServer PowerShell module (auto-installed if missing).
+
+.PARAMETER ConnectionString
+    Full connection string for the target database. When provided,
+    ServerName and DatabaseName are ignored and no Azure AD token is acquired.
+    Example: "Server=localhost;Database=ARA_New;Integrated Security=True;TrustServerCertificate=True;"
+    Example: "Server=myserver;Database=ARA_New;User Id=sa;Password=MyPass;TrustServerCertificate=True;"
 
 .PARAMETER ServerName
     Fully-qualified Azure SQL server host name.
     Default: hii-ara-dev-sql.database.windows.net
+    Ignored when ConnectionString is provided.
 
 .PARAMETER DatabaseName
     Target database name.
     Default: hii-ara-dev-db
+    Ignored when ConnectionString is provided.
 
 .PARAMETER ScriptsPath
     Directory containing the SQL migration scripts.
@@ -32,7 +45,11 @@
 
 .EXAMPLE
     .\Reset-AraDatabase.ps1
-    Prompts for confirmation, then resets the default dev database.
+    Prompts for confirmation, then resets the default Azure SQL dev database.
+
+.EXAMPLE
+    .\Reset-AraDatabase.ps1 -ConnectionString "Server=localhost;Database=ARA_New;Integrated Security=True;TrustServerCertificate=True;"
+    Resets a local SQL Server database using Windows Auth.
 
 .EXAMPLE
     .\Reset-AraDatabase.ps1 -SkipConfirmation
@@ -41,6 +58,9 @@
 
 [CmdletBinding()]
 param(
+    [Parameter()]
+    [string]$ConnectionString,
+
     [Parameter()]
     [string]$ServerName = 'hii-ara-dev-sql.database.windows.net',
 
@@ -58,13 +78,23 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 # ---------------------------------------------------------------------------
+# Determine authentication mode
+# ---------------------------------------------------------------------------
+$useConnectionString = -not [string]::IsNullOrWhiteSpace($ConnectionString)
+
+# ---------------------------------------------------------------------------
 # Confirmation gate
 # ---------------------------------------------------------------------------
 if (-not $SkipConfirmation) {
     Write-Host ""
     Write-Host "WARNING: This will DROP all ARA tables and recreate them from scratch." -ForegroundColor Yellow
-    Write-Host "  Server  : $ServerName"
-    Write-Host "  Database: $DatabaseName"
+    if ($useConnectionString) {
+        Write-Host "  Connection: (provided connection string)"
+    }
+    else {
+        Write-Host "  Server  : $ServerName"
+        Write-Host "  Database: $DatabaseName"
+    }
     Write-Host ""
     $answer = Read-Host "Type 'yes' to continue"
     if ($answer -ne 'yes') {
@@ -84,32 +114,49 @@ if (-not (Get-Module -ListAvailable -Name SqlServer)) {
 Import-Module SqlServer -ErrorAction Stop
 
 # ---------------------------------------------------------------------------
-# Obtain an Azure AD access token for Azure SQL
+# Obtain an Azure AD access token (only when not using ConnectionString)
 # ---------------------------------------------------------------------------
-Write-Host ""
-Write-Host "Acquiring Azure AD access token for Azure SQL..."
-$tokenJson = az account get-access-token --resource https://database.windows.net/ 2>&1
-if ($LASTEXITCODE -ne 0) {
-    Write-Error "Failed to acquire Azure AD token. Ensure you are logged in: 'az login'"
+$accessToken = $null
+
+if ($useConnectionString) {
+    Write-Host ""
+    Write-Host "Using provided connection string (no Azure AD token)."
 }
-$accessToken = ($tokenJson | ConvertFrom-Json).accessToken
-if ([string]::IsNullOrWhiteSpace($accessToken)) {
-    Write-Error "Azure AD token was empty. Ensure you are logged in: 'az login'"
+else {
+    Write-Host ""
+    Write-Host "Acquiring Azure AD access token for Azure SQL..."
+    $tokenJson = az account get-access-token --resource https://database.windows.net/ 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Failed to acquire Azure AD token. Ensure you are logged in: 'az login'"
+    }
+    $accessToken = ($tokenJson | ConvertFrom-Json).accessToken
+    if ([string]::IsNullOrWhiteSpace($accessToken)) {
+        Write-Error "Azure AD token was empty. Ensure you are logged in: 'az login'"
+    }
+    Write-Host "Token acquired successfully."
 }
-Write-Host "Token acquired successfully."
 
 # ---------------------------------------------------------------------------
 # Helper: run a SQL statement against the target database
 # ---------------------------------------------------------------------------
 function Invoke-Sql {
     param([string]$Query)
-    Invoke-Sqlcmd `
-        -ServerInstance $ServerName `
-        -Database       $DatabaseName `
-        -AccessToken    $accessToken `
-        -Query          $Query `
-        -QueryTimeout   120 `
-        -ErrorAction    Stop
+    if ($useConnectionString) {
+        Invoke-Sqlcmd `
+            -ConnectionString $ConnectionString `
+            -Query            $Query `
+            -QueryTimeout     120 `
+            -ErrorAction      Stop
+    }
+    else {
+        Invoke-Sqlcmd `
+            -ServerInstance $ServerName `
+            -Database       $DatabaseName `
+            -AccessToken    $accessToken `
+            -Query          $Query `
+            -QueryTimeout   120 `
+            -ErrorAction    Stop
+    }
 }
 
 # ---------------------------------------------------------------------------
@@ -208,13 +255,22 @@ foreach ($script in $scripts) {
     Write-Host ""
     Write-Host "  Running $script ..."
 
-    Invoke-Sqlcmd `
-        -ServerInstance $ServerName `
-        -Database       $DatabaseName `
-        -AccessToken    $accessToken `
-        -InputFile      $scriptFile `
-        -QueryTimeout   120 `
-        -ErrorAction    Stop
+    if ($useConnectionString) {
+        Invoke-Sqlcmd `
+            -ConnectionString $ConnectionString `
+            -InputFile        $scriptFile `
+            -QueryTimeout     120 `
+            -ErrorAction      Stop
+    }
+    else {
+        Invoke-Sqlcmd `
+            -ServerInstance $ServerName `
+            -Database       $DatabaseName `
+            -AccessToken    $accessToken `
+            -InputFile      $scriptFile `
+            -QueryTimeout   120 `
+            -ErrorAction    Stop
+    }
 
     Write-Host "  Completed: $script"
 }

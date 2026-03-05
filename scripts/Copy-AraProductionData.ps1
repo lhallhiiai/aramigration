@@ -5,8 +5,8 @@
 
 .DESCRIPTION
     Reads the 26 legacy tables required by Invoke-AraDataMigration.ps1 from the
-    production database (read-only, SQL Auth) and bulk-copies them into an empty
-    target database (full access, SQL Auth) on the corporate network.
+    production database (read-only) and bulk-copies them into an empty target
+    database (full access) on the corporate network.
 
     The target database must already exist (empty). The script creates the legacy
     table schema (without foreign keys) and copies all data, preserving original
@@ -17,34 +17,57 @@
       - Validates that every SELECT query used by Invoke-AraDataMigration.ps1
         parses correctly against the copied data
 
+    Authentication options:
+      - SourceConnectionString / TargetConnectionString: Full connection strings
+        supporting any auth method (SQL Auth, Windows Auth, etc.).
+      - Individual parameters (SourceServer, SourceUser, etc.): Builds SQL Auth
+        connection strings from separate fields.
+
     Prerequisites:
       - Target database must already exist (provision via SSMS or DBA request)
       - Both servers accessible from the machine running this script
-      - SQL Server Authentication credentials for both databases
+
+.PARAMETER SourceConnectionString
+    Full connection string for the production database. When provided,
+    SourceServer, SourceDatabase, SourceUser, and SourcePassword are ignored.
+    Example: "Server=prod-server;Database=ARA;Integrated Security=True;TrustServerCertificate=True;"
+
+.PARAMETER TargetConnectionString
+    Full connection string for the target database. When provided,
+    TargetServer, TargetDatabase, TargetUser, and TargetPassword are ignored.
+    Example: "Server=localhost;Database=ARA_Copy;Integrated Security=True;TrustServerCertificate=True;"
 
 .PARAMETER SourceServer
     Hostname or IP of the production SQL Server.
+    Ignored when SourceConnectionString is provided.
 
 .PARAMETER SourceDatabase
     Name of the production database containing legacy ARA tables.
+    Ignored when SourceConnectionString is provided.
 
 .PARAMETER SourceUser
     SQL Auth username for the production database (read-only access).
+    Ignored when SourceConnectionString is provided.
 
 .PARAMETER SourcePassword
     SQL Auth password for the production database.
+    Ignored when SourceConnectionString is provided.
 
 .PARAMETER TargetServer
     Hostname or IP of the corporate network SQL Server.
+    Ignored when TargetConnectionString is provided.
 
 .PARAMETER TargetDatabase
     Name of the empty target database (must already exist).
+    Ignored when TargetConnectionString is provided.
 
 .PARAMETER TargetUser
     SQL Auth username for the target database (full access).
+    Ignored when TargetConnectionString is provided.
 
 .PARAMETER TargetPassword
     SQL Auth password for the target database.
+    Ignored when TargetConnectionString is provided.
 
 .PARAMETER SkipBinaryAttachments
     When specified, skips the binary_file column on the attachments table.
@@ -52,6 +75,11 @@
 
 .PARAMETER BulkCopyTimeout
     Timeout in seconds for each SqlBulkCopy operation. Default: 600 (10 minutes).
+
+.EXAMPLE
+    .\Copy-AraProductionData.ps1 `
+        -SourceConnectionString "Server=prod-server;Database=ARA;Integrated Security=True;TrustServerCertificate=True;" `
+        -TargetConnectionString "Server=localhost;Database=ARA_Copy;Integrated Security=True;TrustServerCertificate=True;"
 
 .EXAMPLE
     .\Copy-AraProductionData.ps1 `
@@ -66,41 +94,41 @@
 
 .EXAMPLE
     .\Copy-AraProductionData.ps1 `
-        -SourceServer "prod-sql-server" `
-        -SourceDatabase "ARA" `
-        -SourceUser "readonly_user" `
-        -SourcePassword "P@ssw0rd" `
-        -TargetServer "corp-sql-server" `
-        -TargetDatabase "ARA_Copy" `
-        -TargetUser "admin_user" `
-        -TargetPassword "P@ssw0rd" `
+        -SourceConnectionString "Server=prod-server;Database=ARA;User Id=readonly;Password=P@ss;TrustServerCertificate=True;" `
+        -TargetConnectionString "Server=localhost;Database=ARA_Copy;User Id=sa;Password=P@ss;TrustServerCertificate=True;" `
         -SkipBinaryAttachments
 #>
 
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory = $true)]
+    [Parameter()]
+    [string]$SourceConnectionString,
+
+    [Parameter()]
+    [string]$TargetConnectionString,
+
+    [Parameter()]
     [string]$SourceServer,
 
-    [Parameter(Mandatory = $true)]
+    [Parameter()]
     [string]$SourceDatabase,
 
-    [Parameter(Mandatory = $true)]
+    [Parameter()]
     [string]$SourceUser,
 
-    [Parameter(Mandatory = $true)]
+    [Parameter()]
     [string]$SourcePassword,
 
-    [Parameter(Mandatory = $true)]
+    [Parameter()]
     [string]$TargetServer,
 
-    [Parameter(Mandatory = $true)]
+    [Parameter()]
     [string]$TargetDatabase,
 
-    [Parameter(Mandatory = $true)]
+    [Parameter()]
     [string]$TargetUser,
 
-    [Parameter(Mandatory = $true)]
+    [Parameter()]
     [string]$TargetPassword,
 
     [Parameter()]
@@ -114,10 +142,23 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 # ---------------------------------------------------------------------------
-# Connection strings
+# Build connection strings (from individual params if not provided directly)
 # ---------------------------------------------------------------------------
-$SourceConnectionString = "Server=$SourceServer;Database=$SourceDatabase;User Id=$SourceUser;Password=$SourcePassword;Encrypt=True;TrustServerCertificate=True;"
-$TargetConnectionString = "Server=$TargetServer;Database=$TargetDatabase;User Id=$TargetUser;Password=$TargetPassword;Encrypt=True;TrustServerCertificate=True;"
+if ([string]::IsNullOrWhiteSpace($SourceConnectionString)) {
+    if ([string]::IsNullOrWhiteSpace($SourceServer) -or [string]::IsNullOrWhiteSpace($SourceDatabase) `
+        -or [string]::IsNullOrWhiteSpace($SourceUser) -or [string]::IsNullOrWhiteSpace($SourcePassword)) {
+        Write-Error "Provide either -SourceConnectionString or all of -SourceServer, -SourceDatabase, -SourceUser, -SourcePassword."
+    }
+    $SourceConnectionString = "Server=$SourceServer;Database=$SourceDatabase;User Id=$SourceUser;Password=$SourcePassword;Encrypt=True;TrustServerCertificate=True;"
+}
+
+if ([string]::IsNullOrWhiteSpace($TargetConnectionString)) {
+    if ([string]::IsNullOrWhiteSpace($TargetServer) -or [string]::IsNullOrWhiteSpace($TargetDatabase) `
+        -or [string]::IsNullOrWhiteSpace($TargetUser) -or [string]::IsNullOrWhiteSpace($TargetPassword)) {
+        Write-Error "Provide either -TargetConnectionString or all of -TargetServer, -TargetDatabase, -TargetUser, -TargetPassword."
+    }
+    $TargetConnectionString = "Server=$TargetServer;Database=$TargetDatabase;User Id=$TargetUser;Password=$TargetPassword;Encrypt=True;TrustServerCertificate=True;"
+}
 
 # ---------------------------------------------------------------------------
 # Helper: Open a SqlConnection
@@ -242,8 +283,16 @@ Write-Host "============================================================"
 Write-Host " ARA Production Data Copy"
 Write-Host "============================================================"
 Write-Host ""
-Write-Host " Source: $SourceServer / $SourceDatabase"
-Write-Host " Target: $TargetServer / $TargetDatabase"
+if (-not [string]::IsNullOrWhiteSpace($SourceServer)) {
+    Write-Host " Source: $SourceServer / $SourceDatabase"
+} else {
+    Write-Host " Source: (provided connection string)"
+}
+if (-not [string]::IsNullOrWhiteSpace($TargetServer)) {
+    Write-Host " Target: $TargetServer / $TargetDatabase"
+} else {
+    Write-Host " Target: (provided connection string)"
+}
 if ($SkipBinaryAttachments) {
     Write-Host " Mode:   Skipping attachment binary data"
 }

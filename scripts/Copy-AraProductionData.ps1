@@ -142,6 +142,16 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 # ---------------------------------------------------------------------------
+# Ensure SqlServer module is available (provides Microsoft.Data.SqlClient)
+# ---------------------------------------------------------------------------
+if (-not (Get-Module -ListAvailable -Name SqlServer)) {
+    Write-Host "SqlServer PowerShell module not found. Installing for current user..."
+    Install-Module -Name SqlServer -Force -AllowClobber -Scope CurrentUser
+}
+
+Import-Module SqlServer -ErrorAction Stop
+
+# ---------------------------------------------------------------------------
 # Build connection strings (from individual params if not provided directly)
 # ---------------------------------------------------------------------------
 if ([string]::IsNullOrWhiteSpace($SourceConnectionString)) {

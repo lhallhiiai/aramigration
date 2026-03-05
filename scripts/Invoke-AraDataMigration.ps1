@@ -159,7 +159,7 @@ function Read-SourceTable {
         $reader = $cmd.ExecuteReader()
         $table = [System.Data.DataTable]::new()
         $table.Load($reader)
-        return $table
+        return , $table
     }
     finally {
         $conn.Close()

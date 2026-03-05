@@ -72,23 +72,24 @@ $ErrorActionPreference = 'Stop'
 # ---------------------------------------------------------------------------
 # Ensure SqlServer module is available (provides Microsoft.Data.SqlClient)
 # ---------------------------------------------------------------------------
+# User-local module directory (no admin rights needed)
+$localModulesDir = Join-Path $HOME '.psmodules'
+
+# Add to PSModulePath so Get-Module and Import-Module can find saved modules
+if ($env:PSModulePath -notlike "*$localModulesDir*") {
+    $env:PSModulePath = "$localModulesDir$([IO.Path]::PathSeparator)$env:PSModulePath"
+}
+
 if (-not (Get-Module -ListAvailable -Name SqlServer)) {
     Write-Host "SqlServer PowerShell module not found. Installing for current user..."
 
-    # Ensure NuGet provider is available at user scope (avoids admin requirement)
-    if (-not (Get-PackageProvider -Name NuGet -ListAvailable -ErrorAction SilentlyContinue |
-              Where-Object { $_.Version -ge [version]'2.8.5.201' })) {
-        Write-Host "  Installing NuGet package provider..."
-        Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force -Scope CurrentUser | Out-Null
+    if (-not (Test-Path $localModulesDir)) {
+        New-Item -ItemType Directory -Path $localModulesDir -Force | Out-Null
     }
 
-    # Trust PSGallery to avoid interactive confirmation prompts
-    $psGallery = Get-PSRepository -Name PSGallery -ErrorAction SilentlyContinue
-    if ($psGallery -and $psGallery.InstallationPolicy -ne 'Trusted') {
-        Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
-    }
-
-    Install-Module -Name SqlServer -Force -AllowClobber -Scope CurrentUser
+    # Save-Module downloads without requiring admin (no Install-Package dependency)
+    Save-Module -Name SqlServer -Path $localModulesDir -Force
+    Write-Host "  SqlServer module saved to $localModulesDir"
 }
 
 Import-Module SqlServer -ErrorAction Stop

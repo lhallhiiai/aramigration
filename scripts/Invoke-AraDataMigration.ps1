@@ -460,9 +460,18 @@ Write-Host "============================================================"
 
 $count = Migrate-Table -LegacyName 'users' -TargetName 'User' `
     -SelectQuery @"
+WITH ranked AS (
+    SELECT *,
+        ROW_NUMBER() OVER (PARTITION BY oprid ORDER BY id_user) AS rn
+    FROM dbo.users
+)
 SELECT
     id_user,
-    ISNULL(oprid, 'legacy-user-' + CAST(id_user AS VARCHAR(20))) AS EntraObjectId,
+    CASE
+        WHEN oprid IS NULL THEN 'legacy-user-' + CAST(id_user AS VARCHAR(20))
+        WHEN rn = 1       THEN oprid
+        ELSE oprid + '-dup' + CAST(id_user AS VARCHAR(20))
+    END AS EntraObjectId,
     emplID,
     oprid AS LegacyOprid,
     ISNULL(empname, 'Unknown') AS DisplayName,
@@ -478,7 +487,7 @@ SELECT
     ISNULL(Inactive, 0) AS IsInactive,
     ISNULL(created_on, GETUTCDATE()) AS CreatedAt,
     modified_on AS UpdatedAt
-FROM dbo.users
+FROM ranked
 "@ `
     -ColumnMappings @{
         'id_user'       = 'UserId'

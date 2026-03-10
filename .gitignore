@@ -15,6 +15,9 @@ new/frontend/build/
 # Frontend dependencies
 new/frontend/node_modules/
 
+# Auto-generated solution files (canonical solution is new/backend/ARA.slnx)
+aramigration.sln
+
 # IDE and OS
 .vs/
 .vscode/settings.json

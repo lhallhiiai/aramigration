@@ -95,24 +95,50 @@ if (-not (Get-Module -ListAvailable -Name SqlServer)) {
 Import-Module SqlServer -ErrorAction Stop
 
 # ---------------------------------------------------------------------------
-# Build target connection string
+# Build target connection string and acquire shared Azure AD token
 # ---------------------------------------------------------------------------
-if ([string]::IsNullOrWhiteSpace($TargetConnectionString)) {
+
+# Determine whether either connection string targets Azure SQL (needs a token)
+$sourceIsAzureSql = $SourceConnectionString -match '\.database\.windows\.net'
+$targetIsAzureSql = (-not [string]::IsNullOrWhiteSpace($TargetConnectionString)) -and
+                    ($TargetConnectionString -match '\.database\.windows\.net')
+$needsToken       = [string]::IsNullOrWhiteSpace($TargetConnectionString) -or $sourceIsAzureSql -or $targetIsAzureSql
+
+if ($needsToken) {
     Write-Host "Acquiring Azure AD access token for Azure SQL..."
     $tokenJson = az account get-access-token --resource https://database.windows.net/ 2>&1
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Failed to acquire Azure AD token. Ensure you are logged in: 'az login'"
     }
-    $script:TargetAccessToken = ($tokenJson | ConvertFrom-Json).accessToken
-    if ([string]::IsNullOrWhiteSpace($script:TargetAccessToken)) {
+    $script:AzureAdToken = ($tokenJson | ConvertFrom-Json).accessToken
+    if ([string]::IsNullOrWhiteSpace($script:AzureAdToken)) {
         Write-Error "Azure AD token was empty. Ensure you are logged in: 'az login'"
     }
-    $TargetConnectionString = "Server=$TargetServer;Database=$TargetDatabase;Encrypt=True;TrustServerCertificate=False;"
-    Write-Host "Token acquired. Target: $TargetServer / $TargetDatabase"
+    Write-Host "Token acquired."
 }
 else {
-    $script:TargetAccessToken = $null
-    Write-Host "Using provided target connection string (no Azure AD token)."
+    $script:AzureAdToken = $null
+}
+
+if ([string]::IsNullOrWhiteSpace($TargetConnectionString)) {
+    $TargetConnectionString = "Server=$TargetServer;Database=$TargetDatabase;Encrypt=True;TrustServerCertificate=False;"
+    Write-Host "Target: $TargetServer / $TargetDatabase"
+}
+else {
+    # Strip any Authentication= keyword — token injection handles auth
+    $TargetConnectionString = $TargetConnectionString -replace 'Authentication\s*=[^;]+;?\s*', ''
+    Write-Host "Using provided target connection string."
+}
+
+# Strip any Authentication= keyword from source — token injection handles auth
+if ($sourceIsAzureSql) {
+    $SourceConnectionString = $SourceConnectionString -replace 'Authentication\s*=[^;]+;?\s*', ''
+}
+
+$script:TargetAccessToken = if ($script:AzureAdToken -and ($TargetConnectionString -match '\.database\.windows\.net')) {
+    $script:AzureAdToken
+} else {
+    $null
 }
 
 # ---------------------------------------------------------------------------
@@ -151,6 +177,9 @@ function Invoke-TargetSql {
 function Read-SourceTable {
     param([string]$Query)
     $conn = [Microsoft.Data.SqlClient.SqlConnection]::new($SourceConnectionString)
+    if ($script:AzureAdToken -and ($SourceConnectionString -match '\.database\.windows\.net')) {
+        $conn.AccessToken = $script:AzureAdToken
+    }
     $conn.Open()
     try {
         $cmd = $conn.CreateCommand()

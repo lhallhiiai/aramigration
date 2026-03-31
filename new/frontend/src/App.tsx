@@ -2,6 +2,8 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { RequireAuth } from "@/components/RequireAuth";
+import { LoginCallbackPage } from "@/pages/LoginCallbackPage";
 import { ActionListPage } from "@/pages/ActionListPage";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { CreateAraPage } from "@/pages/CreateAraPage";
@@ -15,7 +17,14 @@ export default function App() {
   return (
     <TooltipProvider>
       <Routes>
-        <Route element={<AppLayout />}>
+        <Route path="/login/callback" element={<LoginCallbackPage />} />
+        <Route
+          element={
+            <RequireAuth>
+              <AppLayout />
+            </RequireAuth>
+          }
+        >
           <Route index element={<Navigate to="/action-list" replace />} />
           <Route path="/action-list" element={<ActionListPage />} />
           <Route path="/dashboard" element={<DashboardPage />} />

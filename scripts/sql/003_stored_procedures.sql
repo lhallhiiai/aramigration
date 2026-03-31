@@ -5,10 +5,29 @@
 --          Idempotent: uses CREATE OR ALTER PROCEDURE.
 --
 -- Naming convention: usp_[Entity][Action]
---   e.g. usp_AraGetById, usp_UserGetByEntraObjectId
+--   e.g. usp_AraGetById, usp_UserGetByExternalUserId
 -- =============================================================================
 
 SET NOCOUNT ON;
+GO
+
+-- =============================================================================
+-- PRE-REQUISITE: Rename EntraObjectId -> ExternalUserId if not already done
+-- Runs before stored procedures are created so column references are valid.
+-- =============================================================================
+
+IF EXISTS (
+    SELECT 1 FROM sys.columns
+    WHERE object_id = OBJECT_ID('dbo.[User]')
+      AND name = 'EntraObjectId'
+)
+BEGIN
+    EXEC sp_rename 'dbo.[User].EntraObjectId', 'ExternalUserId', 'COLUMN';
+END
+GO
+
+IF OBJECT_ID('dbo.usp_UserGetByEntraObjectId', 'P') IS NOT NULL
+    DROP PROCEDURE dbo.usp_UserGetByEntraObjectId;
 GO
 
 -- =============================================================================
@@ -22,7 +41,7 @@ BEGIN
     SET NOCOUNT ON;
 
     SELECT
-        UserId, EntraObjectId, EmployeeId, LegacyOprid,
+        UserId, ExternalUserId, EmployeeId, LegacyOprid,
         DisplayName, FirstName, LastName, Email,
         RoleId, JobTitleId, SectorId,
         ApprovalGroups, ApprovalOperation, ApprovalDivision,
@@ -32,20 +51,20 @@ BEGIN
 END
 GO
 
-CREATE OR ALTER PROCEDURE dbo.usp_UserGetByEntraObjectId
-    @EntraObjectId NVARCHAR(100)
+CREATE OR ALTER PROCEDURE dbo.usp_UserGetByExternalUserId
+    @ExternalUserId NVARCHAR(100)
 AS
 BEGIN
     SET NOCOUNT ON;
 
     SELECT
-        UserId, EntraObjectId, EmployeeId, LegacyOprid,
+        UserId, ExternalUserId, EmployeeId, LegacyOprid,
         DisplayName, FirstName, LastName, Email,
         RoleId, JobTitleId, SectorId,
         ApprovalGroups, ApprovalOperation, ApprovalDivision,
         IsInactive, CreatedAt, UpdatedAt
     FROM dbo.[User]
-    WHERE EntraObjectId = @EntraObjectId;
+    WHERE ExternalUserId = @ExternalUserId;
 END
 GO
 
@@ -56,7 +75,7 @@ BEGIN
     SET NOCOUNT ON;
 
     SELECT
-        UserId, EntraObjectId, EmployeeId, LegacyOprid,
+        UserId, ExternalUserId, EmployeeId, LegacyOprid,
         DisplayName, FirstName, LastName, Email,
         RoleId, JobTitleId, SectorId,
         ApprovalGroups, ApprovalOperation, ApprovalDivision,
@@ -73,7 +92,7 @@ BEGIN
     SET NOCOUNT ON;
 
     SELECT
-        UserId, EntraObjectId, EmployeeId, LegacyOprid,
+        UserId, ExternalUserId, EmployeeId, LegacyOprid,
         DisplayName, FirstName, LastName, Email,
         RoleId, JobTitleId, SectorId,
         ApprovalGroups, ApprovalOperation, ApprovalDivision,

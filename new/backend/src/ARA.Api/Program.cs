@@ -5,12 +5,12 @@ using ARA.Application.Users;
 using ARA.Infrastructure;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication;
-using Microsoft.Identity.Web;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
 bool isDevAuthActive = builder.Environment.IsDevelopment()
-    && string.IsNullOrWhiteSpace(builder.Configuration["AzureAd:TenantId"]);
+    && string.IsNullOrWhiteSpace(builder.Configuration["Okta:Issuer"]);
 
 if (isDevAuthActive)
 {
@@ -20,7 +20,12 @@ if (isDevAuthActive)
 }
 else
 {
-    builder.Services.AddMicrosoftIdentityWebApiAuthentication(builder.Configuration);
+    builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+        .AddJwtBearer(options =>
+        {
+            options.Authority = builder.Configuration["Okta:Issuer"];
+            options.Audience  = builder.Configuration["Okta:Audience"];
+        });
 }
 
 builder.Services.AddAuthorization();

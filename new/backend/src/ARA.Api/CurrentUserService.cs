@@ -32,21 +32,21 @@ public sealed class CurrentUserService : ICurrentUserService
         if (principal is null)
             return null;
 
-        // Production: Entra ID sets the "oid" claim.
+        // Production: Okta sets the "sub" claim.
         // Dev bypass (DevAuthenticationHandler): falls back to NameIdentifier.
-        string? entraObjectId = principal.FindFirstValue("oid")
+        string? externalUserId = principal.FindFirstValue("sub")
             ?? principal.FindFirstValue(ClaimTypes.NameIdentifier);
 
-        if (string.IsNullOrWhiteSpace(entraObjectId))
+        if (string.IsNullOrWhiteSpace(externalUserId))
         {
             _logger.LogWarning("No identity claim found on authenticated principal.");
             return null;
         }
 
-        ARA.Domain.Entities.User? user = await _userRepository.GetByEntraObjectIdAsync(entraObjectId, cancellationToken);
+        ARA.Domain.Entities.User? user = await _userRepository.GetByExternalUserIdAsync(externalUserId, cancellationToken);
         if (user is null)
         {
-            _logger.LogWarning("Authenticated user {EntraObjectId} has no matching database record.", entraObjectId);
+            _logger.LogWarning("Authenticated user {ExternalUserId} has no matching database record.", externalUserId);
             return null;
         }
 

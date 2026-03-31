@@ -30,7 +30,7 @@ This project is dealing with removing cold fusion from our stack, and replacing 
 - Frontend: React + TypeScript + Tailwind CSS + shadcn/ui
 - Database: Azure SQL Database
 - Hosting: Azure Container Apps
-- Auth: Microsoft Entra ID
+- Auth: Okta (replaced Microsoft Entra ID)
 
 ## Azure Configuration
 
@@ -38,6 +38,14 @@ This project is dealing with removing cold fusion from our stack, and replacing 
 - Region: West US 2
 - Naming convention: hii-ara-dev-[resource]
 - Resource Group: ARA-Dev-Work
+
+## Okta Configuration
+
+- Test Okta Domain: `https://hii-test-admin.oktapreview.com/`
+- Test API Client ID: `0oawygfqavWdJX7Nw1d7`
+- Authorization Server Issuer: `https://hii-test.oktapreview.com/oauth2/default`
+- Audience: `api://default`
+- Test Frontend SPA Client ID: `0oawyh822mSqLuAqu1d7`
 
 ## Coding Conventions
 

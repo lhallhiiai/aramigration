@@ -35,12 +35,12 @@ public sealed class UserRepository : IUserRepository
     }
 
     /// <inheritdoc/>
-    public async Task<User?> GetByEntraObjectIdAsync(string entraObjectId, CancellationToken cancellationToken = default)
+    public async Task<User?> GetByExternalUserIdAsync(string externalUserId, CancellationToken cancellationToken = default)
     {
         using IDbConnection connection = await _connectionFactory.CreateAsync(cancellationToken);
         CommandDefinition cmd = new(
-            commandText: "usp_UserGetByEntraObjectId",
-            parameters: new { EntraObjectId = entraObjectId },
+            commandText: "usp_UserGetByExternalUserId",
+            parameters: new { ExternalUserId = externalUserId },
             commandType: CommandType.StoredProcedure,
             cancellationToken: cancellationToken);
         return await connection.QueryFirstOrDefaultAsync<User>(cmd);

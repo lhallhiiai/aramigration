@@ -1,3 +1,5 @@
+import { oktaAuth } from "./okta-config";
+
 const API_BASE = "/api";
 
 export class ApiError extends Error {
@@ -10,11 +12,27 @@ export class ApiError extends Error {
   }
 }
 
+async function getAuthHeader(): Promise<Record<string, string>> {
+  if (import.meta.env.DEV) return {};
+  try {
+    const tokenContainer = await oktaAuth.tokenManager.get("accessToken");
+    if (tokenContainer && "accessToken" in tokenContainer) {
+      return { Authorization: `Bearer ${tokenContainer.accessToken}` };
+    }
+  } catch {
+    // No token available — request will proceed unauthenticated
+  }
+  return {};
+}
+
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
+  const authHeader = await getAuthHeader();
+
   const response = await fetch(`${API_BASE}${url}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",
+      ...authHeader,
       ...options?.headers,
     },
   });

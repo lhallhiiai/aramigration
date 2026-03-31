@@ -4,7 +4,7 @@ namespace ARA.Domain.Entities;
 
 /// <summary>
 /// Represents a system user with an assigned role in the ARA workflow.
-/// Identity is federated through Microsoft Entra ID; local records store the
+/// Identity is federated through Okta; local records store the
 /// role assignment, approval routing configuration, and display information.
 /// Maps to the legacy <c>users</c> table.
 /// </summary>
@@ -14,10 +14,10 @@ public sealed class User
     public int UserId { get; init; }
 
     /// <summary>
-    /// Gets the Microsoft Entra ID object identifier (OID claim) used to resolve the authenticated caller.
-    /// Replaces the legacy <c>oprid</c> / <c>password</c> authentication model.
+    /// Gets the external identity provider subject identifier used to resolve the authenticated caller.
+    /// Populated from the Okta <c>sub</c> claim. Replaces the legacy <c>oprid</c> / <c>password</c> authentication model.
     /// </summary>
-    public string EntraObjectId { get; init; } = string.Empty;
+    public string ExternalUserId { get; init; } = string.Empty;
 
     /// <summary>Gets the HR system employee identifier. Maps to legacy <c>emplID</c>.</summary>
     public string? EmployeeId { get; init; }

@@ -16,13 +16,13 @@ public interface IUserRepository
     Task<User?> GetByIdAsync(int userId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Retrieves a user by their Microsoft Entra ID object identifier.
-    /// Used to resolve the authenticated caller to a local user record.
+    /// Retrieves a user by their external identity provider subject identifier.
+    /// Used to resolve the authenticated caller (Okta <c>sub</c> claim) to a local user record.
     /// </summary>
-    /// <param name="entraObjectId">The Entra ID object identifier (OID claim).</param>
+    /// <param name="externalUserId">The Okta subject identifier from the <c>sub</c> claim.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     /// <returns>The matching <see cref="User"/>, or null if not found.</returns>
-    Task<User?> GetByEntraObjectIdAsync(string entraObjectId, CancellationToken cancellationToken = default);
+    Task<User?> GetByExternalUserIdAsync(string externalUserId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Retrieves all active users with the specified role.

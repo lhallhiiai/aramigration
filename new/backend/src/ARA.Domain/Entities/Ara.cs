@@ -63,15 +63,14 @@ public sealed class Ara
     public string? Reference { get; init; }
 
     /// <summary>
-    /// Gets the revision counter. Increments each time the ARA is rejected and resubmitted.
-    /// Confirmed present in legacy; exact increment logic is unresolved (ambiguity #3 in CLAUDE.md).
-    /// Maps to legacy <c>revision</c>.
+    /// Gets the revision counter. Starts at 1 on creation and increments by 1
+    /// each time the ARA is rejected and resubmitted. Maps to legacy <c>revision</c>.
     /// </summary>
     public int Revision { get; init; }
 
     /// <summary>
-    /// Gets the JAMIS-assigned identifier populated after export to JAMIS.
-    /// Maps to legacy <c>jamisNo</c>.
+    /// Gets the legacy JAMIS-assigned identifier. Retained for migration reference only;
+    /// JAMIS is no longer used. Maps to legacy <c>jamisNo</c>.
     /// </summary>
     public string? JamisId { get; init; }
 
@@ -81,7 +80,7 @@ public sealed class Ara
     public string? Division { get; init; }
 
     /// <summary>
-    /// Gets the JAMIS contract number, validated against live JAMIS data.
+    /// Gets the contract number, validated against local Costpoint-sourced data.
     /// Populated for Non-Early Start ARAs only. Maps to legacy <c>contractNo</c>.
     /// </summary>
     public string? ContractNumber { get; init; }
@@ -93,8 +92,8 @@ public sealed class Ara
     public string? ContractType { get; init; }
 
     /// <summary>
-    /// Gets the OMS opportunity number, validated against live OMS data.
-    /// Populated for Early Start (Pre-Contract Costs) ARAs only. Maps to legacy <c>OMSNum</c>.
+    /// Gets the legacy OMS opportunity number. OMS is no longer used; field retained for
+    /// legacy data compatibility. Maps to legacy <c>OMSNum</c>.
     /// </summary>
     public string? OmsNumber { get; init; }
 
@@ -107,8 +106,8 @@ public sealed class Ara
     public string? CustomerName { get; init; }
 
     /// <summary>
-    /// Gets the total ARA amount set by the PM. Enforces the CLIN funding cap
-    /// (combined Cost + Fee must not exceed this) and determines the $50K question threshold.
+    /// Gets the total ARA amount set by the PM. Used for the CLIN funding cap soft warning
+    /// and determines the approval routing threshold ($500K triggers additional approvers).
     /// Maps to legacy <c>amountTotal</c>.
     /// </summary>
     public decimal AmountTotal { get; init; }
@@ -147,7 +146,7 @@ public sealed class Ara
     // ── Company and misc flags ────────────────────────────────────────────────
 
     /// <summary>
-    /// Gets the company code used to segment JAMIS export batches.
+    /// Gets the company code. Retained from the legacy system for reference.
     /// Maps to legacy <c>company</c>.
     /// </summary>
     public string? Company { get; init; }
@@ -161,8 +160,9 @@ public sealed class Ara
     public DateTime? StartDate { get; init; }
 
     /// <summary>
-    /// Gets the expected expiration date, displayed on the Dashboard.
-    /// Expiration logic is unresolved (ambiguity #11 in CLAUDE.md). Maps to legacy <c>expirationDate</c>.
+    /// Gets the expected expiration date, entered manually by the PM during creation.
+    /// Displayed on the Dashboard. Automatic transition to Expired status occurs when
+    /// the date is reached. No extension mechanism exists. Maps to legacy <c>expirationDate</c>.
     /// </summary>
     public DateTime? ExpirationDate { get; init; }
 
@@ -172,7 +172,7 @@ public sealed class Ara
     /// <summary>Gets the UTC timestamp of the most recent update to this ARA record.</summary>
     public DateTime UpdatedAt { get; init; }
 
-    /// <summary>Gets the UTC timestamp when the ARA was exported to JAMIS.</summary>
+    /// <summary>Gets the legacy UTC timestamp when the ARA was exported. JAMIS export is no longer used.</summary>
     public DateTime? ExportedAt { get; init; }
 
     /// <summary>Gets the UTC timestamp when the CA negated this ARA.</summary>

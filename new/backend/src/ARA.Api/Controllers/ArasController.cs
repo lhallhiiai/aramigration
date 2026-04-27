@@ -20,6 +20,7 @@ public sealed class ArasController : ControllerBase
     private readonly IAraService _araService;
     private readonly IAraPmSectionService _pmSectionService;
     private readonly IAraControllerSectionService _controllerSectionService;
+    private readonly IApprovalRoutingService _approvalRoutingService;
     private readonly ICurrentUserService _currentUserService;
     private readonly ILogger<ArasController> _logger;
 
@@ -28,12 +29,14 @@ public sealed class ArasController : ControllerBase
         IAraService araService,
         IAraPmSectionService pmSectionService,
         IAraControllerSectionService controllerSectionService,
+        IApprovalRoutingService approvalRoutingService,
         ICurrentUserService currentUserService,
         ILogger<ArasController> logger)
     {
         _araService               = araService;
         _pmSectionService         = pmSectionService;
         _controllerSectionService = controllerSectionService;
+        _approvalRoutingService   = approvalRoutingService;
         _currentUserService       = currentUserService;
         _logger                   = logger;
     }
@@ -183,6 +186,19 @@ public sealed class ArasController : ControllerBase
         return NoContent();
     }
 
+    // ── Approval chain ──────────────────────────────────────────────────────────
+
+    /// <summary>Returns the required approval chain for the given ARA with completion status per step.</summary>
+    [HttpGet("{araId:int}/approval-chain")]
+    public async Task<IActionResult> GetApprovalChain(int araId, CancellationToken cancellationToken)
+    {
+        ARA.Application.Common.Result<IReadOnlyList<ApprovalStepResult>> result =
+            await _approvalRoutingService.GetRequiredChainAsync(araId, cancellationToken);
+        if (result.IsFailure)
+            return NotFound(result.Error);
+        return Ok(result.Value);
+    }
+
     // ── Workflow transitions ────────────────────────────────────────────────────
 
     /// <summary>PM signs and submits the ARA. Transitions Draft → PendingContractAdministrator.</summary>
@@ -269,7 +285,7 @@ public sealed class ArasController : ControllerBase
         return NoContent();
     }
 
-    /// <summary>CA negates an Exported ARA after a contract modification is received.</summary>
+    /// <summary>CA negates an Approved or Exported ARA after a contract modification is received.</summary>
     [HttpPost("{araId:int}/negate")]
     public async Task<IActionResult> Negate(int araId, CancellationToken cancellationToken)
     {

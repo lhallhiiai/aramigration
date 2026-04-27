@@ -3,8 +3,10 @@ using ARA.Application.Ara;
 using ARA.Application.Ara.Sections;
 using ARA.Application.Category;
 using ARA.Application.Clin;
+using ARA.Application.Delegation;
 using ARA.Application.Document;
 using ARA.Application.JobTitle;
+using ARA.Application.RejectionReason;
 using ARA.Application.Users;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -30,6 +32,9 @@ public static class ApplicationServiceExtensions
         services.AddScoped<IClinEntryService, ClinEntryService>();
         services.AddScoped<IDocumentService, DocumentService>();
         services.AddScoped<IApprovalRecordService, ApprovalRecordService>();
+        services.AddScoped<IApprovalRoutingService, ApprovalRoutingService>();
+        services.AddScoped<IDelegationService, DelegationService>();
+        services.AddScoped<IRejectionReasonService, RejectionReasonService>();
 
         return services;
     }

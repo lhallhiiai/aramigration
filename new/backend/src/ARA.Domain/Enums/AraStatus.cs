@@ -20,7 +20,7 @@ public enum AraStatus
     /// <summary>All required approvers have approved the ARA.</summary>
     Approved = 5,
 
-    /// <summary>ARA has been exported to JAMIS.</summary>
+    /// <summary>Legacy status — JAMIS export is no longer used. Retained for historical data compatibility.</summary>
     Exported = 6,
 
     /// <summary>ARA authorization period lapsed without a contract modification being received.</summary>

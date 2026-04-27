@@ -2,8 +2,9 @@ namespace ARA.Domain.Enums;
 
 /// <summary>
 /// Risk categories available when creating an ARA.
-/// <see cref="PreContractCosts"/> is the sole Early Start category and uses an OMS Number.
-/// All other categories are Non-Early Start and use a JAMIS Contract Number.
+/// <see cref="PreContractCosts"/> is the sole Early Start category.
+/// All other categories are Non-Early Start and use a Contract Number.
+/// Categories map to Risk Levels (1=Low, 2=Medium, 3=High) which drive the Approval Matrix.
 /// </summary>
 public enum RiskCategory
 {
@@ -55,9 +56,9 @@ public enum RiskCategory
     FixedPriceMod = 8,
 
     /// <summary>
-    /// Early Start: work performed in advance of a final negotiated contract where the customer
-    /// has authorized Alion in writing to proceed before contract definitization.
-    /// Uses OMS Number instead of JAMIS Contract Number.
+    /// Early Start (Risk Level 3 — High Risk): work performed in advance of a final negotiated
+    /// contract where the customer has authorized HII in writing to proceed before contract
+    /// definitization.
     /// </summary>
     PreContractCosts = 9,
 }

@@ -14,4 +14,7 @@ public enum AraTab
 
     /// <summary>The Controller section of the ARA form, including the CLIN worksheet.</summary>
     Controller = 3,
+
+    /// <summary>The Documents section of the ARA form (uploaded PDF attachments).</summary>
+    Documents = 4,
 }

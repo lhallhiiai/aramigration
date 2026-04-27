@@ -54,6 +54,13 @@ public sealed class ApprovalRecord
     /// </summary>
     public string? RejectionAreas { get; init; }
 
+    /// <summary>
+    /// Gets the ID of the original delegator when this action was taken via delegation.
+    /// Null when the approver acted directly (not through delegation).
+    /// When set, <see cref="ApproverId"/> is the delegatee who physically took the action.
+    /// </summary>
+    public int? DelegatorUserId { get; init; }
+
     /// <summary>Gets the UTC timestamp when this action was recorded. Maps to legacy <c>ActionDate</c>.</summary>
     public DateTime ActionTakenAt { get; init; }
 

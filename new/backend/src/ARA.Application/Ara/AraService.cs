@@ -12,32 +12,28 @@ namespace ARA.Application.Ara;
 /// All business rule failures are returned as <see cref="Result"/> failures; exceptions are never thrown for business rules.
 /// </summary>
 /// <remarks>
-/// <para>
 /// The <c>ApplyUpdate</c> helper below copies every Ara property and exceeds 20 lines.
 /// This is an inherent consequence of <c>Ara</c> being a sealed class with init-only properties
 /// (which prevents C# <c>with</c>-expression syntax). A future refactor converting <c>Ara</c>
 /// to a <c>record</c> would reduce this to a single <c>with</c> expression.
-/// </para>
-/// <para>
-/// <c>ApproveAsync</c> transitions directly to <see cref="AraStatus.Approved"/> (single-approver
-/// simplification). Full Approval and Threshold Matrix routing is deferred pending resolution
-/// of ambiguities #1 and #7 documented in CLAUDE.md.
-/// </para>
 /// </remarks>
 public sealed class AraService : IAraService
 {
     private readonly IAraRepository _araRepository;
     private readonly IApprovalRecordRepository _approvalRepository;
+    private readonly IApprovalRoutingService _routingService;
     private readonly ILogger<AraService> _logger;
 
     /// <summary>Initializes a new instance of <see cref="AraService"/>.</summary>
     public AraService(
         IAraRepository araRepository,
         IApprovalRecordRepository approvalRepository,
+        IApprovalRoutingService routingService,
         ILogger<AraService> logger)
     {
         _araRepository      = araRepository;
         _approvalRepository = approvalRepository;
+        _routingService     = routingService;
         _logger             = logger;
     }
 
@@ -203,18 +199,41 @@ public sealed class AraService : IAraService
         if (ara.Status != AraStatus.PendingApproval)
             return Result.Failure("ARA must be in PendingApproval status to approve.");
 
+        Result<ApprovalAuthorization> authResult =
+            await _routingService.AuthorizeApproverAsync(araId, approverId, cancellationToken);
+        if (authResult.IsFailure)
+            return Result.Failure(authResult.Error!);
+
+        ApprovalAuthorization auth = authResult.Value!;
+
         ApprovalRecord record = new()
         {
-            AraId         = araId,
-            ApproverId    = approverId,
-            Action        = ApprovalActionType.Approve,
-            AraRevision   = ara.Revision,
-            Comment       = comment,
-            SequenceOrder = 1,
+            AraId            = araId,
+            ApproverId       = approverId,
+            JobTitleId       = auth.ActingAsJobTitleId,
+            Action           = auth.RequiredAction,
+            AraRevision      = ara.Revision,
+            Comment          = comment,
+            SequenceOrder    = auth.SequenceOrder,
+            DelegatorUserId  = auth.IsDelegated ? auth.ActingAsUserId : null,
         };
         await _approvalRepository.CreateAsync(record, cancellationToken);
-        await _araRepository.UpdateStatusAsync(araId, AraStatus.Approved, ara.Revision, cancellationToken: cancellationToken);
-        _logger.LogInformation("ARA {AraId} approved by user {ApproverId}.", araId, approverId);
+
+        Result<ApprovalStepResult?> nextStepResult =
+            await _routingService.GetNextRequiredStepAsync(araId, cancellationToken);
+
+        if (nextStepResult.IsSuccess && nextStepResult.Value is null)
+        {
+            await _araRepository.UpdateStatusAsync(araId, AraStatus.Approved, ara.Revision, cancellationToken: cancellationToken);
+            _logger.LogInformation("ARA {AraId} fully approved. Final action by user {ApproverId} at step {Step}.",
+                araId, approverId, auth.SequenceOrder);
+        }
+        else
+        {
+            _logger.LogInformation("ARA {AraId} {Action} by user {ApproverId} at step {Step}. Next step pending.",
+                araId, auth.RequiredAction, approverId, auth.SequenceOrder);
+        }
+
         return Result.Success();
     }
 
@@ -225,12 +244,32 @@ public sealed class AraService : IAraService
         if (ara is null)
             return Result.Failure($"ARA {araId} not found.");
 
-        bool canReject = ara.Status == AraStatus.PendingContractAdministrator && ara.ContractAdministratorId == userId
-            || ara.Status == AraStatus.PendingController && ara.ControllerId == userId
-            || ara.Status == AraStatus.PendingApproval;
+        int sequenceOrder = 0;
+        int? delegatorUserId = null;
 
-        if (!canReject)
+        if (ara.Status == AraStatus.PendingContractAdministrator && ara.ContractAdministratorId == userId)
+        {
+            sequenceOrder = 2;
+        }
+        else if (ara.Status == AraStatus.PendingController && ara.ControllerId == userId)
+        {
+            sequenceOrder = 3;
+        }
+        else if (ara.Status == AraStatus.PendingApproval)
+        {
+            Result<ApprovalAuthorization> authResult =
+                await _routingService.AuthorizeApproverAsync(araId, userId, cancellationToken);
+            if (authResult.IsFailure)
+                return Result.Failure($"Cannot reject: {authResult.Error}");
+
+            ApprovalAuthorization auth = authResult.Value!;
+            sequenceOrder = auth.SequenceOrder;
+            delegatorUserId = auth.IsDelegated ? auth.ActingAsUserId : null;
+        }
+        else
+        {
             return Result.Failure("Cannot reject: ARA is not in a rejectable state for this user.");
+        }
 
         ApprovalRecord record = new()
         {
@@ -241,11 +280,13 @@ public sealed class AraService : IAraService
             Comment           = request.Comment,
             RejectionReasonId = request.RejectionReasonId,
             RejectionAreas    = request.RejectionAreas,
-            SequenceOrder     = 1,
+            SequenceOrder     = sequenceOrder,
+            DelegatorUserId   = delegatorUserId,
         };
         await _approvalRepository.CreateAsync(record, cancellationToken);
         await _araRepository.UpdateStatusAsync(araId, AraStatus.Draft, ara.Revision + 1, cancellationToken: cancellationToken);
-        _logger.LogInformation("ARA {AraId} rejected by user {UserId}. New revision: {Revision}.", araId, userId, ara.Revision + 1);
+        _logger.LogInformation("ARA {AraId} rejected by user {UserId} at step {Step}. New revision: {Revision}.",
+            araId, userId, sequenceOrder, ara.Revision + 1);
         return Result.Success();
     }
 
@@ -275,8 +316,8 @@ public sealed class AraService : IAraService
             return Result.Failure($"ARA {araId} not found.");
         if (ara.ContractAdministratorId != userId)
             return Result.Failure("Only the assigned Contract Administrator may negate this ARA.");
-        if (ara.Status != AraStatus.Exported)
-            return Result.Failure("Only Exported ARAs may be negated.");
+        if (ara.Status != AraStatus.Approved && ara.Status != AraStatus.Exported)
+            return Result.Failure("Only Approved or Exported ARAs may be negated.");
 
         await _araRepository.UpdateStatusAsync(araId, AraStatus.Negated, ara.Revision, negatedAt: DateTime.UtcNow, cancellationToken: cancellationToken);
         _logger.LogInformation("ARA {AraId} negated by CA {UserId}.", araId, userId);

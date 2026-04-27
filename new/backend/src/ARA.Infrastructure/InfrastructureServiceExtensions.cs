@@ -29,6 +29,9 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<IJobTitleRepository, JobTitleRepository>();
         services.AddScoped<IAraPmSectionRepository, AraPmSectionRepository>();
         services.AddScoped<IAraControllerSectionRepository, AraControllerSectionRepository>();
+        services.AddScoped<IApprovalMatrixRepository, ApprovalMatrixRepository>();
+        services.AddScoped<IDelegationRepository, DelegationRepository>();
+        services.AddScoped<IRejectionReasonRepository, RejectionReasonRepository>();
 
         return services;
     }

@@ -36,4 +36,12 @@ public interface IUserRepository
     /// <summary>Retrieves all active users across all roles.</summary>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     Task<IReadOnlyList<User>> GetAllActiveAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Retrieves all active users with the specified job title.
+    /// Used by the approval routing engine to find candidate approvers for a matrix step.
+    /// </summary>
+    /// <param name="jobTitleId">The job title identifier to filter by.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    Task<IReadOnlyList<User>> GetByJobTitleIdAsync(int jobTitleId, CancellationToken cancellationToken = default);
 }

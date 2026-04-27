@@ -70,4 +70,17 @@ public sealed class UserRepository : IUserRepository
         IEnumerable<User> results = await connection.QueryAsync<User>(cmd);
         return results.ToList().AsReadOnly();
     }
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyList<User>> GetByJobTitleIdAsync(int jobTitleId, CancellationToken cancellationToken = default)
+    {
+        using IDbConnection connection = await _connectionFactory.CreateAsync(cancellationToken);
+        CommandDefinition cmd = new(
+            commandText: "usp_UserGetByJobTitleId",
+            parameters: new { JobTitleId = jobTitleId },
+            commandType: CommandType.StoredProcedure,
+            cancellationToken: cancellationToken);
+        IEnumerable<User> results = await connection.QueryAsync<User>(cmd);
+        return results.ToList().AsReadOnly();
+    }
 }

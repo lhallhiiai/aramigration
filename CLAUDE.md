@@ -456,8 +456,15 @@ Any git command that modifies historyƒ
 The ARA (At Risk Authorization) application is a web-based workflow system
 for submitting, routing, reviewing, and approving authorizations to spend
 company funds on work before a contract modification or award is received.
-It integrates with JAMIS (the accounting system) and OMS (the opportunity
-tracking system) to validate inputs and export approved ARAs.
+It integrates with Costpoint (the accounting/ERP system, via DBA-managed
+database imports — not a live API) to validate inputs such as Org, CLIN,
+and Contract Number data.
+
+> **Note:** The legacy system referenced JAMIS and OMS integrations. The
+> company no longer uses JAMIS or OMS. All references to JAMIS export and
+> OMS lookups are OBE (Overcome By Events). Costpoint has replaced JAMIS
+> as the ERP system. CLIN data is populated by a DBA with a pull from
+> Costpoint — ARA does not communicate with Costpoint directly.
 
 There are exactly two ARA types. Always enforce this distinction throughout
 the system:
@@ -475,7 +482,7 @@ the system:
 | **Dashboard** | Displays ARA expirations sorted by expected expiration date and all pending ARAs grouped by status. |
 | **Create ARA** | Multi-step form for submitting a new ARA; restricted to users with the Creator role only. |
 | **Search ARA** | Full search interface for filtering and browsing all ARA records. |
-| **Quick Search** | Partial or full ARA ID or JAMIS ID lookup, accessible from any page. |
+| **Quick Search** | Partial or full ARA ID lookup, accessible from any page. |
 | **ARA System Information** | Displays delegation configurations and the Approval & Threshold Matrix. |
 | **CLIN Worksheet/Calculator** | Controller-only tool for allocating ARA funding across Contract Line Item Numbers; required for Non-Early Start only. |
 | **Document Upload** | PDF upload interface available at the CA and Controller stages; supports many-to-one and one-to-many document tagging. |
@@ -505,7 +512,7 @@ permissions unless the guide explicitly states otherwise:
 Always branch logic on ARA type. The two paths differ in fields, required
 documents, and Controller behavior.
 
-**Non-Early Start risk categories** (use JAMIS Contract Number):
+**Non-Early Start risk categories** (use Contract Number):
 
 - Award Fees
 - Mod Pending (Incremental Funding)
@@ -516,13 +523,21 @@ documents, and Controller behavior.
 - Change in Scope
 - Fixed Price Mod
 
-**Early Start risk category** (use OMS Number instead of JAMIS):
+**Early Start risk category:**
 
 - Pre-Contract Costs
 
+**Risk Level Mapping (for Approval Matrix routing):**
+
+| Risk Level | Categories |
+| --- | --- |
+| **Level 1 (Low Risk)** | Award Fees & Incentive Fees, Modification Pending (Incremental Funding), Period of Performance, Letter Contract & ATP |
+| **Level 2 (Medium Risk)** | Modification Pending (Incremental Funding & Extend POP), Change in Existing SOW, Previous RI Experience (Resolved in difficulty clearing) |
+| **Level 3 (High Risk)** | Pre-Contract Cost or Funding Not Expected Within 30 Days |
+
 | Behavior | Non-Early Start | Early Start |
 | --- | --- | --- |
-| Contract lookup field | JAMIS/Contract Number | OMS Number |
+| Contract lookup field | Contract Number | Contract Number |
 | Step 2 additional fields | Contract Manager, Controller | Title, Customer, Contract Administrator, Controller |
 | CA documentation required | Yes | No |
 | Controller CLIN worksheet | Required | Not required |
@@ -562,8 +577,8 @@ Every ARA must traverse these stages in order:
 
 - Must require the PM to Save before Upload Documents or Sign & Submit
   are enabled. Never allow submission without a prior save.
-- Must require the CA (Non-Early Start) to Save before the document
-  upload option becomes available.
+- Must require the CA to Save before Submit and document upload become
+  available. This applies to both Early Start and Non-Early Start.
 
 #### Section Lock-Down on Submission
 
@@ -576,12 +591,27 @@ Every ARA must traverse these stages in order:
 #### Rejection Behavior
 
 - A rejection at any stage (CA, Controller, or any Approver) must return
-  the ARA to the PM's queue and restart the entire action chain from the
-  beginning.
+  the ARA to the PM's queue and restart the entire approval chain from
+  the beginning (PM → CA → Controller → Approvers). All sections unlock.
 - Must send an email notification to every party who has taken action on
   the ARA at the time of rejection.
-- Approver rejection must capture: a comment, a reason code, and the
-  affected tab for resubmission focus.
+- Approver rejection must capture:
+  - **Comment** (free text, required)
+  - **Reason code** (required, single select from):
+    - Supporting Documentation is Insufficient
+    - Incorrect CLIN Number Used
+    - Incorrect Amount Entered
+    - Amount & Supporting docs do not match
+    - Inadequate comments justification on form
+    - Other
+    - ARA no longer needed
+  - **Affected tab** (checkbox, one or more of):
+    - Program Mgr
+    - Contract Mgr
+    - Controller
+    - Documents
+- **Revision** field starts at 1 on creation and increments by 1 on
+  each rejection cycle.
 
 #### Approval Routing
 
@@ -589,24 +619,100 @@ Every ARA must traverse these stages in order:
   the Approval & Threshold Matrix. Never hard-code an approval chain.
 - Must send an email to all prior actors when an Approver approves, and
   a separate email to the next approver.
+- Approval is **sequential** — one approver at a time in the defined order.
+- Routing is determined by **dollar amount only**, not risk category
+  (risk category determines risk level, which selects the matrix column).
+- Approvers are constrained by **approve_grp** — an approver only sees
+  ARAs whose group matches their approve_grp.
+- **OpsVP** is selected by the PM during ARA creation, not auto-routed.
+- **MTC COO** approval is always final when they participate.
+- A single approver cannot satisfy all threshold requirements even if they
+  hold sufficient authority — each level must be satisfied individually.
 
-#### $50K Question Threshold
+**Approval & Threshold Matrix (sequential order):**
 
-- Must only display certain ARA questions when the ARA amount exceeds
-  $50,000. Never show those questions for amounts at or below $50K.
+| # | Role | Action | Threshold |
+| --- | --- | --- | --- |
+| 1 | Project / Program Manager | Creator (+) | — |
+| 2 | Contract Administrator | A (d) | >= $0 |
+| 3 | Project Controller | A (d) | >= $0 |
+| 4 | Portfolio Leader | A (d) | >= $0 |
+| 5 | Contract Director | R (d) | >= $0 |
+| 6 | Group Finance Manager | R (d) | >= $0 |
+| 7 | Business Group President | A (d) | >= $0 |
+| 8 | Finance Vice President | A (d) | >= $500,000 |
+| 9 | SVP of Contracts & Procurement | R (d) | >= $500,000 |
+| 10 | MTC COO | A (d) | >= $500,000 |
+
+- **A (d)** = Approve action (delegable)
+- **R (d)** = Review action (delegable)
+- **+** = Creator / initiator
+- Roles 8–10 only participate when the ARA amount is >= $500,000.
+
+**Delegation:** Any user except admin can delegate. The delegatee receives
+the email notifications the delegator would have received and takes action
+in their place.
+
+#### PM Questions
+
+- The same 6 PM questions appear for **all** ARA amounts (the original
+  $50K suppression rule has been overridden by the product owner — all
+  questions now display regardless of amount):
+  1. **Justify Risk** — Why is it necessary for HII to risk funds in
+     advance of contract or modification receipt?
+  2. **Proactive Actions in Progress** — What is currently being done to
+     ensure contract definitization or the expected contract or
+     modification execution date?
+  3. **Other Risk Info** — What other pertinent information is available
+     to aid in evaluating this request for at risk approval? Are there
+     any special or unusual circumstances?
+  4. **Work Prior to ARA** — Was work started prior to presenting the
+     request for management approval, explain
+  5. **Consequence of Disapproval** — What is the consequence of not
+     commencing work in advance of a signed contract or modification?
+  6. **Current Status** — What is the current status of the anticipated
+     contractual coverage?
+- All 6 questions are **required**, all amounts, with text input.
+- For **Early Start** ARAs, the same 6 questions apply but are prefaced
+  with "Early Start" in the label. These may be updated later.
+
+#### CA Questions
+
+- The same CA questions apply to **all** Non-Early Start risk categories.
+- CA questions for Non-Early Start:
+  1. Type of Customer (dropdown)
+  2. Expected Contract or Mod Execution Date (date)
+  3. Contract Type (dropdown — e.g. CPFF)
+  4. Anticipated Negotiation Date (date)
+  5. POP of current Award Fee Period (From date / To date)
+  6. Award fee pool amount for total contract or Delivery Order. If
+     shared, maximum HII share of award fee pool.
+  7. Estimated funding date for award fee decision based on most recent
+     fee award.
+- For **Early Start** ARAs, the same CA questions apply but are prefaced
+  with "Early Start" in the label. These may be updated later.
 
 #### CLIN Worksheet Rules (Non-Early Start Controller Only)
 
-- Must pre-populate available CLINs from JAMIS for the entered contract.
+- Must pre-populate available CLINs from the local database (sourced from
+  Costpoint via DBA import) for the entered contract.
 - Must enforce that each pre-populated CLIN can only be used once per ARA.
 - Must auto-calculate and display Total Cost, Total Fees, and Total when
   CLIN entries are complete. Never require manual entry of these totals.
-- Must prevent submission if the combined Cost and Fee funding across all
-  CLINs exceeds the total ARA Amount set by the PM.
+- CLIN funding cap is a **soft warning**: if the combined Cost and Fee
+  funding across all CLINs exceeds the total ARA Amount set by the PM,
+  display a warning but allow the Controller to proceed with acknowledgement.
+- **Interest Impact**: Legacy field, always $0.00. Dollar amount. Formerly
+  used when ALION could take fee at risk; no longer applicable under HII
+  accounting rules. Display as read-only $0.00.
+- **Expected Burn Rate**: Manually entered dollar amount by the Controller.
+  No validation or calculation — free numeric entry.
 
 #### Document Upload Rules
 
 - Must accept PDF format only for all document uploads.
+- Maximum file size: **5 MB** per PDF.
+- No limit on the number of PDFs uploaded per ARA per stage.
 - Must allow one uploaded PDF to be tagged to satisfy multiple document
   requirements simultaneously.
 - Must allow multiple PDFs to be uploaded to satisfy a single document
@@ -616,12 +722,42 @@ Every ARA must traverse these stages in order:
 - Must require documentation for Non-Early Start ARAs at the CA stage
   before the CA may submit forward.
 
+**Document requirement types (by stage and risk category):**
+
+CA (Contract Manager) document types — catID indicates which risk
+categories the document type applies to:
+
+| catID List | Document Type |
+| --- | --- |
+| 1 | Contract support of Award fee |
+| 2 | 75% / 85% Letter & Binding Documents to Customer |
+| 5 | Customer Confirmation |
+| 5 | Contract Schedule |
+| 6,7,8,9,10 | Other Customer Notification |
+| 6,7,8,9,10 | Supporting Binding documentation |
+| 7,8 | Copy of HII MTD proposal |
+| 8 | Change Notification / Authorization |
+| 10 | Customer Authorization to Proceed |
+
+Controller document types:
+
+| catID List | Document Type |
+| --- | --- |
+| 2,4,5,6,7,... | Cost and Fee Determination Documentation |
+| 6 | Customer payment history |
+
+**Required documents for Non-Early Start CA submission:**
+Contract support of Award fee, 75% / 85% Letter & Binding Documents to
+Customer, Customer Confirmation, Contract Schedule, Copy of HII MTD
+proposal, Change Notification / Authorization. All others are optional.
+
 #### Autocomplete Validation
 
-- Must validate Org input against JAMIS (Sector, Group, Operation,
-  Division, Description). Never allow free-text Org values.
-- Must validate JAMIS/Contract Number against JAMIS live data.
-- Must validate OMS Number against OMS live data.
+- Must validate Org input against local database (sourced from Costpoint:
+  Sector, Group, Operation, Division, Description). Never allow free-text
+  Org values.
+- Must validate Contract Number against local database (sourced from
+  Costpoint via DBA import).
 - Always display a dropdown of matching values as the user types.
 
 #### Negation
@@ -634,21 +770,36 @@ Every ARA must traverse these stages in order:
 
 #### Email Notifications
 
+Sender address: `ara@hii-tsd.com`
+All emails must include: a link to the ARA, a summary of ARA details,
+and the specific action taken and by whom.
+
 Always trigger email on these events:
 
 - PM signs and submits
 - CA submits for next approval
 - Controller submits for approval
-- Any approver approves (to prior actors and next approver)
-- Any rejection (to all prior actors)
+- Any approver approves (to PM, Controller, and all prior approvers;
+  separate email to the next approver)
+- Any rejection (to all prior actors — PM, Controller, prior approvers)
 - ARA is negated (to all creation and approval parties)
+- ARA is cancelled by PM (to PM, Contract Admin, and admin)
 
 #### ARA Statuses (Known from Guide)
 
-- Expired – ARA reached end of period without a contract modification
-- Negated – CA negated a previously exported ARA
-- Archived – exported ARAs accessible via the Archived menu
-- Revision tracking changes on rejection (see Ambiguities below)
+- Expired – ARA reached expiration date; automatic transition; no further
+  action possible; user must create a new ARA (no extension mechanism)
+- Negated – CA negated a previously approved ARA
+- Archived – completed ARAs accessible via the Archived menu
+- Revision starts at 1 on creation, increments by 1 on each rejection
+
+#### ARA Expiration
+
+- Expiration date is entered manually by the PM during ARA creation.
+- Transition to Expired status is automatic based on the expiration date.
+- Once expired, no further action can be taken. The ARA is permanently
+  read-only and the user must start a new ARA.
+- There is no mechanism to extend an expiration date.
 
 ---
 
@@ -661,15 +812,16 @@ the business owner.
 | --- | --- |
 | **ARA** | At Risk Authorization — a formal internal authorization to spend funds or recognize revenue before a contract modification or award is received. |
 | **AJERAS** | Alion Journal Entry and Revenue Adjustment System — the parent application suite that hosts the ARA module. |
-| **JAMIS** | The company's accounting/ERP system. ARA pulls Org, CLIN, and Contract Number data from JAMIS and exports approved ARAs back to it. |
-| **OMS** | Opportunity Management System — tracks pre-contract opportunities; used as the contract reference for Early Start ARAs. |
-| **Early Start** | An ARA for Pre-Contract Costs where the customer has authorized work in writing before a definitized contract exists. Uses OMS Number, not JAMIS. |
-| **Non-Early Start** | Any ARA risk category other than Pre-Contract Costs; always tied to an existing JAMIS contract. |
-| **CLIN** | Contract Line Item Number — the funding line within a JAMIS contract used to allocate ARA spending. |
+| **JAMIS** | **LEGACY — NO LONGER USED.** The former accounting/ERP system. Replaced by Costpoint. All JAMIS export functionality is OBE. |
+| **Costpoint** | The company's current accounting/ERP system. ARA pulls Org, CLIN, and Contract Number data from a local database populated by DBA imports from Costpoint. ARA does not communicate with Costpoint directly. |
+| **OMS** | **LEGACY — NO LONGER USED.** Opportunity Management System — formerly used for Early Start ARA lookups. |
+| **Early Start** | An ARA for Pre-Contract Costs where the customer has authorized work in writing before a definitized contract exists. |
+| **Non-Early Start** | Any ARA risk category other than Pre-Contract Costs; always tied to an existing contract. |
+| **CLIN** | Contract Line Item Number — the funding line within a contract used to allocate ARA spending. |
 | **Revenue Recognition** | The choice on an ARA to either authorize spending only, or authorize both spending and recognizing the associated revenue. |
 | **Approval & Threshold Matrix** | A system-configured table that determines which approvers must act on an ARA and in what order, based on dollar thresholds and other criteria. |
 | **Negation** | A CA action that marks an Exported ARA as Negated when a contract modification is subsequently received. Distinct from rejection and cancellation. |
-| **Exported** | ARA status indicating the record has been exported to JAMIS. |
+| **Exported** | **LEGACY — NO LONGER USED.** Formerly indicated the record was exported to JAMIS. ARAs are no longer exported. |
 | **Expired** | ARA status indicating the authorization period lapsed without a contract modification being received. |
 | **My Action List** | Landing page filter showing only ARAs currently awaiting the logged-in user's action. |
 | **75% Letter / Limitation of Funds Notice** | A formal notice submitted to the customer when contract funding is nearly exhausted; a prerequisite for Modification Pending ARAs. |
@@ -682,97 +834,52 @@ the business owner.
 | **Internally Cleared** | Risk category for ARAs where the risk condition was resolved after the report run date without customer involvement; must clear within 30 days or by end of subsequent quarter. |
 | **Pre-Contract Costs** | The Early Start risk category; work authorized in writing by customer before contract definitization. |
 | **Incurred Costs / Incurred Fee** | Controller-entered fields representing costs and fees already incurred against the ARA. |
-| **Interest Impact** | A Controller-entered field on the CLIN worksheet (meaning not further defined in guide — see Ambiguities). |
-| **Expected Burn Rate** | A Controller-entered field on the CLIN worksheet (meaning not further defined in guide — see Ambiguities). |
-| **Revision** | A field on the ARA that changes when an ARA is rejected and resubmitted (tracking not fully defined in guide — see Ambiguities). |
+| **Interest Impact** | Legacy Controller field on the CLIN worksheet. Dollar amount. Always $0.00 — formerly used when ALION could take fee at risk; no longer applicable under HII accounting rules. Display as read-only. |
+| **Expected Burn Rate** | Controller-entered dollar amount on the CLIN worksheet. Manually entered, no validation or calculation. |
+| **Revision** | Starts at 1 on ARA creation. Increments by 1 each time the ARA is rejected and resubmitted. |
+| **Contract Manager** | Synonym for Contract Administrator. These terms are used interchangeably by Contracts. They are one and the same role. |
 
 ---
 
 ### Constraints and System Requirements
 
-- Must integrate with JAMIS for Org, CLIN, and Contract Number lookups
-  and for ARA export.
-- Must integrate with OMS for OMS Number lookups on Early Start ARAs.
+- Must read Org, CLIN, and Contract Number data from the local database
+  (populated by DBA imports from Costpoint). No live API integration.
 - Must send automated email at every defined stage transition.
 - Must support role-based access control for at minimum: Creator/PM,
   Contract Administrator, Controller, Approver.
 - Must support the Approval & Threshold Matrix as a configurable system
   setting, not hard-coded logic.
-- Must support multiple simultaneous Approvers in a sequential chain.
+- Must support multiple sequential Approvers in a defined chain.
 - Must track ARA status with at minimum: active in-progress states,
-  Expired, Archived, Exported, Negated.
-- Must maintain a Revision counter that increments on rejection cycles.
+  Expired, Archived, Negated.
+- Must maintain a Revision counter starting at 1, incrementing on
+  rejection cycles.
 - Must support partial saves at every stage so users can complete forms
   across sessions.
+- Must automatically expire ARAs based on the PM-entered expiration date.
 
 ---
 
-### Ambiguities and Gaps — Resolve Before Migrating Affected Features
+### Ambiguities and Gaps — Resolution Status
 
-The following items are either not explained or inconsistent in the user
-guide. Flag these to the product owner before implementing the affected
-features.
+All 12 original ambiguities have been resolved via product owner review
+(April 2026). Answers are documented inline in the relevant sections above.
 
-1. **Approval & Threshold Matrix thresholds are undocumented.**
-   The guide shows the matrix exists (Figure 7) but never states the
-   dollar thresholds, number of approvers, or routing rules. Must obtain
-   the actual matrix data before building approval routing logic.
-
-2. **"Questions" on the ARA form are never listed.**
-   The guide states questions appear on the PM and CA sections and are
-   suppressed below $50K, but the actual questions are never enumerated.
-   Must obtain the full question list with their $50K applicability flags.
-
-3. **"Revision" field behavior is undefined.**
-   The guide notes that Status and Revision change on rejection (Figures
-   42–43) but never explains how Revision is calculated, incremented, or
-   displayed. Clarify before building rejection/resubmission logic.
-
-4. **"Interest Impact" and "Expected Burn Rate" are undefined.**
-   Both are required Controller fields on the CLIN worksheet but neither
-   is defined in the guide or glossary. Clarify data type, calculation
-   source, and validation rules before building the Controller form.
-
-5. **Early Start CA action list inconsistency.**
-   The first action list for Early Start CA (Save / Upload Documents /
-   Reject) omits "Submit for Next Approval," but the post-save action
-   list does include it. Clarify whether Submit is available before
-   document upload for Early Start, or only after.
-
-6. **"Contract Manager" vs. "Contract Administrator" naming conflict.**
-   Non-Early Start Step 2 labels the dropdown "Contract Manager," but
-   all other references use "Contract Administrator." Confirm whether
-   these are the same role or two distinct roles.
-
-7. **Approver count and multi-approval chain is undefined.**
-   The guide references "the next approver" repeatedly but never states
-   how many approvers exist, whether they act in parallel or series, or
-   what the terminal approval condition is. Must be resolved before
-   building the approval routing engine.
-
-8. **"Export to JAMIS" process is entirely absent.**
-   The guide references Exported status and negation of Exported ARAs
-   but never describes what triggers export, how it works, or what data
-   is sent. Must document the export process before building it.
-
-9. **Delegation configuration is not described.**
-   The System Information page includes a Delegations section (Figure 6)
-   but the guide does not explain what can be delegated, who can delegate,
-   or how delegation affects workflow routing.
-
-10. **OMS Number format and validation rules are not specified.**
-    The guide says the field autocompletes from OMS data but provides no
-    format constraints, minimum length, or error handling guidance.
-
-11. **ARA expiration logic is not described.**
-    The guide mentions an "Expired" status and a Dashboard showing
-    "critical ARA expirations by expected expiration dates," but never
-    explains how expiration dates are set, calculated, or what triggers
-    the Expired status transition.
-
-12. **Document upload file size and count limits are absent.**
-    No maximum file size or maximum number of uploads per stage is stated.
-    Confirm before building upload validation.
+| # | Original Gap | Resolution |
+| --- | --- | --- |
+| 1 | Approval Matrix thresholds | **Resolved.** Full matrix documented in Approval Routing section. |
+| 2 | ARA form questions | **Resolved.** 6 PM questions (all amounts), 7 CA questions (all categories). See PM Questions and CA Questions sections. |
+| 3 | Revision field behavior | **Resolved.** Starts at 1, increments by 1 per rejection. See Rejection Behavior. |
+| 4 | Interest Impact / Burn Rate | **Resolved.** Interest Impact = legacy $0.00 field. Burn Rate = manual dollar entry. See CLIN Worksheet Rules. |
+| 5 | Early Start CA submit availability | **Resolved.** Must save before submit becomes available (both Early Start and Non-Early Start). |
+| 6 | Contract Manager vs CA naming | **Resolved.** Same role, terms used interchangeably. |
+| 7 | Approver count / chain | **Resolved.** 10 sequential roles, varies by threshold. See Approval Routing matrix. |
+| 8 | JAMIS Export | **Resolved.** JAMIS no longer used. No export process needed. |
+| 9 | Delegation | **Resolved.** Any user except admin can delegate. Delegatee receives notifications and acts in place. |
+| 10 | OMS Number | **Resolved.** OMS no longer used. Feature eliminated. |
+| 11 | ARA expiration logic | **Resolved.** PM enters date manually. Automatic expiration. No extensions. See ARA Expiration section. |
+| 12 | Document upload limits | **Resolved.** 5 MB per file, no upload count limit. See Document Upload Rules. |
 
 ---
 
@@ -798,14 +905,12 @@ features.
 ### Phase 1 — Remaining
 
 - [ ] Database connectivity — Dapper connection factory, stored procedure conventions
-- [ ] Authentication — Entra ID configuration and middleware
-- [ ] Core domain entities — `Ara`, `User`, `Role`, `Status`, `Category`
+- [ ] Authentication — Okta configuration and middleware
+- [ ] Core domain entities — `Ara`, `User`, `Role`, `Status`, `RiskCategory`
 
 ### Phase 2 — ARA Workflow (Not Started)
 
 ARA creation → PM tab → Contract Administrator tab → Controller tab → Approval chain
 
-### Resolved Ambiguities
-
-None resolved yet. See User Guide Reference → Ambiguities and Gaps for the full list.
-Prioritize items 1, 2, 7, and 8 before starting Phase 2 approval chain work.
+All 12 ambiguities resolved (April 2026). See Ambiguities and Gaps — Resolution
+Status section for the full resolution table. Phase 2 is now unblocked.

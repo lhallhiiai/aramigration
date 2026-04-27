@@ -68,8 +68,10 @@ public interface IAraService
     Task<Result> SubmitByControllerAsync(int araId, int userId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Approver approves the ARA. Records the approval log entry and transitions to Approved.
-    /// Full threshold-matrix routing is deferred pending resolution of ambiguities #1 and #7.
+    /// Approver acts on the ARA at the current step of the Approval and Threshold Matrix.
+    /// The routing engine determines the required action (Approve or Review), validates
+    /// authorization including delegation, and advances the chain. Transitions to Approved
+    /// when all required steps are complete.
     /// </summary>
     Task<Result> ApproveAsync(int araId, int approverId, string? comment, CancellationToken cancellationToken = default);
 
@@ -85,8 +87,8 @@ public interface IAraService
     Task<Result> CancelAsync(int araId, int userId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// CA negates an Exported ARA after a contract modification is received.
-    /// Transitions Exported → Negated. Only the assigned CA may call this.
+    /// CA negates an Approved or Exported ARA after a contract modification is received.
+    /// Transitions to Negated. Only the assigned CA may call this.
     /// </summary>
     Task<Result> NegateAsync(int araId, int userId, CancellationToken cancellationToken = default);
 }

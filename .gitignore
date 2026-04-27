@@ -38,3 +38,9 @@ logs/
 # NuGet
 *.nupkg
 .nuget/
+
+# Claude Code IDE config
+.claude/
+
+# Working notes (not part of the codebase)
+answers/

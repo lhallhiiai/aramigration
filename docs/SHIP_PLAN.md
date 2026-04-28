@@ -30,38 +30,39 @@ When a future session opens this file, it can resume work without re-deriving co
 
 ## Items (in execution order)
 
-### Item 1 — Costpoint import [ ]
+### Item 1 — Historical data migration (`ara_legacy` → `ara_new`) [ ]
 
-- **What it means:** Build a manually-triggered import process that pulls Org, CLIN, and Contract Number reference data from a Costpoint backup file and lands it in the local Azure SQL tables that ARA queries (`Org`, `Clin`, `ContractNumber` or whatever the existing schema names them).
-- **Why it blocks ship:** Without this data, no ARA can be created. Org and Contract Number validation queries the local DB; CLIN worksheet pre-populates from the local DB. Empty tables = non-functional application.
+- **What it means:** Build a PowerShell migration script that copies historical ARA data from the `ara_legacy` database into the new `ara_new` schema, mapping legacy lowercase columns to the new PascalCase schema. The script is the deliverable; the user will run it against an updated copy of `ara_legacy` when one is provided.
+- **Background context (2026-04-28):** The original Item 1 was "Costpoint import." Investigation of `ara_legacy` showed: no Costpoint reference tables anywhere on the server; Org and Contract Number were always free-text in the legacy app; 0 of 11,716 historical CLIN rows came from JAMIS/Costpoint pre-population. Product decision: ARA matches legacy free-text behavior. The Costpoint validation rules in CLAUDE.md were stripped accordingly (commit referenced in Carry-forward notes). What remains for Item 1 is bringing the historical record forward.
+- **Why it blocks ship:** Production launch needs the historical ARA record (≈7,561 ARAs, ≈11,716 CLINs, users, approval audit trail) carried into the new app so users see their existing data on day one.
 - **Required outcome:**
-  - PowerShell-only import script (per CLAUDE.md "All scripts that are created my only be powershell") that takes the backup file path as a parameter and lands rows via stored procedures
-  - Idempotent — re-running against the same backup yields the same final state with no duplicates and no destructive churn
-  - An import-log table (or row in an existing config table) capturing the timestamp of the last successful import — required by Item 5 (data freshness health check)
-  - A smoke check that confirms a non-zero row count and that an ARA can be created end-to-end against the imported reference data
+  - PowerShell-only migration script that accepts source and target connection details as parameters
+  - Idempotent — re-running against the same source produces no duplicates and no destructive churn
+  - Maps every needed legacy table to its new schema target: lookups (role, status, category, jobTitle, sector, customerType, esReason, revenueDescr, rejectionReason, emailTypes, thresholds, attach_checklist, Cat_Questions_Map), users, ara, ara_PM / ara_cm / ara_con sections, clins, attachments, araAppLog, delegation
+  - Preserves logical identity: legacy `id_ara` traceable to new `AraId` (via direct ID copy or via a stored mapping column — decide during execution and document)
+  - Verification report at end of run: row counts per table on source vs target, plus a checksum (e.g., `SUM` of an integer or money column) per table for spot validation
+  - Documented invocation and full schema mapping
 - **Files / components touched:**
-  - `scripts/import/Import-CostpointData.ps1` (new) — main import script
-  - `scripts/import/data/` (new, gitignored) — folder where the backup file is expected
-  - `scripts/sql/00X_costpoint_reference_tables.sql` (new) — confirms target tables exist; adds `CostpointImportLog` table for freshness tracking
-  - `scripts/sql/usp_OrgUpsert.sql`, `usp_ClinUpsert.sql`, `usp_ContractNumberUpsert.sql`, `usp_CostpointImportLog_RecordSuccess.sql` (new SPs)
-  - `docs/ship/COSTPOINT_IMPORT.md` (new) — invocation guide and expected file path
-  - `.gitignore` — add `scripts/import/data/` if not already covered
-- **Dependencies:** None.
+  - `scripts/migration/Migrate-LegacyToNew.ps1` (new) — main script
+  - `scripts/migration/lib/` (new) — supporting PowerShell modules per concern (lookups, users, ara, sections, clins, attachments, approval log)
+  - `scripts/migration/sql/` (new) — supporting `.sql` files for idempotent UPSERT statements / staging tables if needed
+  - `docs/ship/HISTORICAL_MIGRATION.md` (new) — invocation guide and verification approach
+  - `docs/ship/SCHEMA_MAPPING.md` (new) — full legacy → new column mapping table (legacy.column → new.Column, transforms applied, dropped columns)
+- **Dependencies:** None. (`ara_new` schema already exists per migrations 001–006; the script will validate the target schema is current at start time.)
 - **Out of scope for this item:**
-  - Live Costpoint API integration (CLAUDE.md: ARA does not communicate with Costpoint directly)
-  - Scheduled / automated import (manual trigger is sufficient)
-  - Production data validation (this validates against the stale backup only — production import is part of Item 6)
-  - Test coverage beyond the smoke check (full coverage is Item 7)
-  - UI for triggering the import
+  - Running the script against production-restored data — that's part of Item 6's go-live checklist
+  - Any schema changes to `ara_new` — the schema is fixed by migrations 001–006; if the migration reveals a missing column, raise it as a Carry-forward note rather than expanding scope this item
+  - Costpoint reference data (no longer in scope per 2026-04-28 product decision: ARA matches legacy free-text behavior for Org, Contract Number, and CLIN entries)
+  - Test coverage beyond the script's own verification report (Item 7 covers full coverage)
 - **Acceptance checklist:**
-  - [ ] Backup file path documented; user has confirmed file is in place at the expected path
-  - [ ] Import script runs to completion against the stale backup with zero errors
-  - [ ] Re-running the script against the same backup produces no row changes (proven via row count + idempotency check)
-  - [ ] `Org`, `Clin`, and `ContractNumber` tables show non-zero row counts after import
-  - [ ] `CostpointImportLog` records the successful run with timestamp
-  - [ ] Smoke test: an ARA can be created in dev that validates against an imported Org and Contract Number, and the CLIN worksheet pre-populates from imported CLIN data
-  - [ ] Invocation documented in `docs/ship/COSTPOINT_IMPORT.md`
-- **Completion update instruction:** When done, flip the heading to `[x]`, add a `Completed: YYYY-MM-DD — <commit SHA(s)>` line below the checklist, append any findings to Carry-forward notes, and add a Completion log line.
+  - [ ] Script runs end-to-end against `ara_legacy` (current dev copy) into a fresh `ara_new` with zero errors
+  - [ ] Re-running the script against the same source produces no row changes (idempotency verified)
+  - [ ] Row counts in target match source within the documented mapping (e.g., users → User, ara → Ara, clins → Clin)
+  - [ ] Spot-check: pick 3 random ARAs by legacy `id_ara`, verify all sections, CLINs, attachments, and approval log entries are present and look correct in the new schema
+  - [ ] Schema mapping documented in `docs/ship/SCHEMA_MAPPING.md`
+  - [ ] Invocation documented in `docs/ship/HISTORICAL_MIGRATION.md`
+  - [ ] User confirms the script is ready to run against an updated copy when received
+- **Completion update instruction:** When done, flip the heading to `[x]`, add a `Completed: YYYY-MM-DD — <commit SHA(s)>` line below the checklist, append any findings to Carry-forward notes (especially legacy data quirks or missing columns discovered), and add a Completion log line.
 
 ---
 
@@ -169,15 +170,13 @@ When a future session opens this file, it can resume work without re-deriving co
   - App Insights configured via Key Vault-sourced connection string
   - `/health/live` — cheap, returns 200 if process is up; no dependency calls
   - `/health/ready` — runs real checks, returns degraded JSON when any check fails
-  - Custom checks: SQL connectivity, Key Vault reachability, Costpoint-data freshness (date of last successful import from Item 1's `CostpointImportLog`), Okta OIDC discovery endpoint reachability
+  - Custom checks: SQL connectivity, Key Vault reachability, Okta OIDC discovery endpoint reachability
 - **Files / components touched:**
   - `new/backend/src/ARA.Api/Program.cs` — add App Insights, register health checks, map `/health/live` and `/health/ready`
   - `new/backend/src/ARA.Infrastructure/HealthChecks/SqlConnectivityHealthCheck.cs` (new)
   - `new/backend/src/ARA.Infrastructure/HealthChecks/KeyVaultHealthCheck.cs` (new)
-  - `new/backend/src/ARA.Infrastructure/HealthChecks/CostpointDataFreshnessHealthCheck.cs` (new)
   - `new/backend/src/ARA.Infrastructure/HealthChecks/OktaMetadataHealthCheck.cs` (new)
-  - `scripts/sql/usp_CostpointImportLog_GetLatest.sql` (new) — supports the freshness check
-- **Dependencies:** Item 2 (Key Vault), Item 1 (Costpoint import populates the freshness signal).
+- **Dependencies:** Item 2 (Key Vault).
 - **Out of scope for this item:**
   - Dashboards, alert rules, log queries (operations setup, not code)
   - Test coverage (Item 7)
@@ -185,7 +184,7 @@ When a future session opens this file, it can resume work without re-deriving co
   - [ ] App Insights connection string read from Key Vault — no fallback to source
   - [ ] `/health/live` returns 200 with no dependencies checked
   - [ ] `/health/ready` returns JSON with per-check status; degrades when any dependency is unreachable
-  - [ ] All four custom checks present: SQL, Key Vault, Costpoint freshness, Okta metadata
+  - [ ] All three custom checks present: SQL, Key Vault, Okta metadata
   - [ ] Manual test: kill DB connectivity → `/health/ready` reports unhealthy; restore → healthy
 - **Completion update instruction:** Flip to `[x]`, add `Completed:` line with SHA(s), append findings to Carry-forward notes, add Completion log entry.
 
@@ -206,7 +205,7 @@ When a future session opens this file, it can resume work without re-deriving co
 
 #### Production go-live checklist (fill in during execution)
 
-- [ ] Costpoint import has run against PRODUCTION data (not the stale backup); row counts match expected; verifier / date: ___
+- [ ] Historical data migration (Item 1 script) has run against the latest production-restored copy of `ara_legacy` into prod `ara_new`; row counts and spot-check sample documented; verifier / date: ___
 - [ ] Key Vault references resolve in the prod Container App at boot (no startup errors); verifier / date: ___
 - [ ] Okta app integration in PROD tenant points at the prod hostname (CORS allowed origins, redirect URIs, audience); verifier / date: ___
 - [ ] `Users` table reachable; JIT provisioning enabled and verified with one prod test user; verifier / date: ___

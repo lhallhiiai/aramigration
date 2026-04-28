@@ -81,6 +81,20 @@ public sealed class ClinEntryService : IClinEntryService
         return Result.Success();
     }
 
+    /// <inheritdoc/>
+    public async Task<ClinSummaryDto> GetSummaryAsync(int araId, CancellationToken cancellationToken = default)
+    {
+        IReadOnlyList<ClinEntry> entries = await _clinRepository.GetByAraIdAsync(araId, cancellationToken);
+        ARA.Domain.Entities.Ara? ara = await _araRepository.GetByIdAsync(araId, cancellationToken);
+
+        decimal totalCost = entries.Sum(e => e.Cost);
+        decimal totalFee = entries.Sum(e => e.Fee);
+        decimal grandTotal = totalCost + totalFee;
+        decimal araAmount = ara?.AmountTotal ?? 0;
+
+        return new ClinSummaryDto(totalCost, totalFee, grandTotal, araAmount, grandTotal > araAmount);
+    }
+
     private static ClinEntryDto ToDto(ClinEntry e) =>
         new(e.ClinEntryId, e.AraId, e.ClinNumber, e.ClinDescription, e.Cost, e.Fee, e.Total);
 }

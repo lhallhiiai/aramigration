@@ -199,6 +199,50 @@ public sealed class ClinEntryServiceTests
             .ReturnsAsync(entries.AsReadOnly());
     }
 
+    [Fact]
+    public async Task GetSummaryAsync_WithClinsThatExceedAraAmount_ReturnsSoftWarning()
+    {
+        decimal araAmount = 50_000m;
+        _araRepo.Setup(r => r.GetByIdAsync(TestAraId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ARA.Domain.Entities.Ara { AraId = TestAraId, AmountTotal = araAmount });
+
+        List<ClinEntry> entries =
+        [
+            new() { ClinEntryId = 1, AraId = TestAraId, ClinNumber = "CLIN-01", Cost = 30_000m, Fee = 5_000m },
+            new() { ClinEntryId = 2, AraId = TestAraId, ClinNumber = "CLIN-02", Cost = 20_000m, Fee = 3_000m },
+        ];
+        _clinRepo.Setup(r => r.GetByAraIdAsync(TestAraId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(entries.AsReadOnly());
+
+        ClinSummaryDto summary = await _sut.GetSummaryAsync(TestAraId, CancellationToken.None);
+
+        summary.TotalCost.Should().Be(50_000m);
+        summary.TotalFee.Should().Be(8_000m);
+        summary.GrandTotal.Should().Be(58_000m);
+        summary.AraAmount.Should().Be(araAmount);
+        summary.ExceedsAraAmount.Should().BeTrue("combined CLIN funding exceeds ARA amount");
+    }
+
+    [Fact]
+    public async Task GetSummaryAsync_WithClinsUnderAraAmount_NoWarning()
+    {
+        decimal araAmount = 100_000m;
+        _araRepo.Setup(r => r.GetByIdAsync(TestAraId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ARA.Domain.Entities.Ara { AraId = TestAraId, AmountTotal = araAmount });
+
+        List<ClinEntry> entries =
+        [
+            new() { ClinEntryId = 1, AraId = TestAraId, ClinNumber = "CLIN-01", Cost = 30_000m, Fee = 5_000m },
+        ];
+        _clinRepo.Setup(r => r.GetByAraIdAsync(TestAraId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(entries.AsReadOnly());
+
+        ClinSummaryDto summary = await _sut.GetSummaryAsync(TestAraId, CancellationToken.None);
+
+        summary.GrandTotal.Should().Be(35_000m);
+        summary.ExceedsAraAmount.Should().BeFalse();
+    }
+
     private void SetupNoExistingClinEntries()
     {
         _clinRepo.Setup(r => r.GetByAraIdAsync(TestAraId, It.IsAny<CancellationToken>()))

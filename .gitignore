@@ -12,6 +12,11 @@ new/backend/**/obj/
 # Frontend build output
 new/frontend/dist/
 new/frontend/build/
+new/frontend/coverage/
+
+# Backend test output
+new/backend/**/TestResults/
+new/backend/CoverageReport/
 
 # Frontend dependencies
 new/frontend/node_modules/

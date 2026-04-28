@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   backend:
-    name: Backend (build + format)
+    name: Backend (build + format + test)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -36,6 +36,39 @@ jobs:
 
       - name: Format check
         run: dotnet format ARA.slnx --verify-no-changes --no-restore
+
+      - name: Test (with coverage)
+        # ARA_TEST_CONNECTION_STRING is intentionally unset in CI — Infrastructure
+        # tests use the IsAvailable pattern in TestDatabaseFixture and skip
+        # gracefully when no DB is reachable. Item 7 carry-forward note tracks the
+        # follow-up to wire a CI-accessible Azure SQL test target.
+        run: >-
+          dotnet test ARA.slnx -c Release --no-build
+          --collect:"XPlat Code Coverage"
+          --logger "console;verbosity=normal"
+          --results-directory TestResults
+
+      - name: Merge coverage reports
+        run: |
+          dotnet tool install -g dotnet-reportgenerator-globaltool
+          reportgenerator "-reports:TestResults/*/coverage.cobertura.xml" "-targetdir:CoverageReport" "-reporttypes:Cobertura;TextSummary"
+          cat CoverageReport/Summary.txt
+
+      - name: Coverage threshold gate
+        # Threshold is intentionally set to the dev-branch achievable bar
+        # (≥35% line). The aspirational ≥80% lives in SHIP_PLAN Item 7
+        # acceptance and lifts when the phase2 AraService merge + Azure SQL
+        # CI target close the documented gaps.
+        shell: pwsh
+        run: ../../scripts/Test-CoverageThreshold.ps1 -Path CoverageReport/Cobertura.xml -MinimumLineRate 0.35
+
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: new/backend/CoverageReport/Cobertura.xml
+          if-no-files-found: warn
 
   frontend:
     name: Frontend (lint + build)
@@ -67,6 +100,19 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Test (with coverage)
+        # vitest.config.ts enforces ≥70% line/branch/function/statement
+        # thresholds on the included src/lib/** modules. A drop fails the job.
+        run: npm run test:coverage
+
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage
+          path: new/frontend/coverage/lcov.info
+          if-no-files-found: warn
 
   commitlint:
     name: Commit messages (Conventional Commits)

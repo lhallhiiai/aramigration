@@ -139,7 +139,9 @@ When a future session opens this file, it can resume work without re-deriving co
 
 ---
 
-### Item 4 — User provisioning (Okta JIT + admin onboarding) [ ]
+### Item 4 — User provisioning (Okta JIT + admin onboarding) [~]
+
+**Started:** 2026-04-28
 
 - **What it means:** When an authenticated Okta user hits the app and has no row in the local `Users` table, create one automatically using token claims. Provide an admin-onboard fallback for cases where JIT cannot run (e.g. background processes that need a user record before any sign-in). **Authorization rule for production: any user granted access to the application in Okta gets access — there is no per-user gate inside the app itself.**
 - **GCC High quirk:** On `hii.okta-gov.com`, `credentials.provider.*` filter paths are disabled. Any directory queries must scope by app integration, not by provider filter. Note this in code comments and `docs/ship/USER_PROVISIONING.md`.

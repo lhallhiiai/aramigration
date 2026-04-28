@@ -36,12 +36,12 @@ public sealed class AraService : IAraService
         IEmailService emailService,
         ILogger<AraService> logger)
     {
-        _araRepository      = araRepository;
+        _araRepository = araRepository;
         _approvalRepository = approvalRepository;
-        _routingService     = routingService;
-        _userRepository     = userRepository;
-        _emailService       = emailService;
-        _logger             = logger;
+        _routingService = routingService;
+        _userRepository = userRepository;
+        _emailService = emailService;
+        _logger = logger;
     }
 
     // ── Reads ──────────────────────────────────────────────────────────────────
@@ -102,32 +102,32 @@ public sealed class AraService : IAraService
     {
         Domain.Entities.Ara ara = new()
         {
-            CategoryId              = request.CategoryId,
-            StatusId                = (int)AraStatus.Draft,
-            CreatedByUserId         = createdByUserId,
-            ProgramManagerId        = request.ProgramManagerId,
+            CategoryId = request.CategoryId,
+            StatusId = (int)AraStatus.Draft,
+            CreatedByUserId = createdByUserId,
+            ProgramManagerId = request.ProgramManagerId,
             ContractAdministratorId = request.ContractAdministratorId,
-            ControllerId            = request.ControllerId,
-            OpsVpUserId             = request.OpsVpUserId,
-            Division                = request.Division,
-            ContractNumber          = request.ContractNumber,
-            DeliveryOrderNumber     = request.DeliveryOrderNumber,
-            ContractType            = request.ContractType,
-            OmsNumber               = request.OmsNumber,
-            Title                   = request.Title,
-            CustomerName            = request.CustomerName,
-            AmountTotal             = request.AmountTotal,
-            AmountRequested         = request.AmountRequested,
-            TotalAnticipated        = request.TotalAnticipated,
-            PercentAnticipated      = request.PercentAnticipated,
-            RevenueDescriptionId    = request.RevenueDescriptionId,
-            IsEarlyStart            = request.IsEarlyStart,
-            EarlyStartReasonId      = request.EarlyStartReasonId,
-            EarlyStartReasonOther   = request.EarlyStartReasonOther,
-            Company                 = request.Company,
-            IsEac                   = request.IsEac,
-            StartDate               = request.StartDate,
-            ExpirationDate          = request.ExpirationDate,
+            ControllerId = request.ControllerId,
+            OpsVpUserId = request.OpsVpUserId,
+            Division = request.Division,
+            ContractNumber = request.ContractNumber,
+            DeliveryOrderNumber = request.DeliveryOrderNumber,
+            ContractType = request.ContractType,
+            OmsNumber = request.OmsNumber,
+            Title = request.Title,
+            CustomerName = request.CustomerName,
+            AmountTotal = request.AmountTotal,
+            AmountRequested = request.AmountRequested,
+            TotalAnticipated = request.TotalAnticipated,
+            PercentAnticipated = request.PercentAnticipated,
+            RevenueDescriptionId = request.RevenueDescriptionId,
+            IsEarlyStart = request.IsEarlyStart,
+            EarlyStartReasonId = request.EarlyStartReasonId,
+            EarlyStartReasonOther = request.EarlyStartReasonOther,
+            Company = request.Company,
+            IsEac = request.IsEac,
+            StartDate = request.StartDate,
+            ExpirationDate = request.ExpirationDate,
         };
 
         int araId = await _araRepository.CreateAsync(ara, cancellationToken);
@@ -245,14 +245,14 @@ public sealed class AraService : IAraService
 
         ApprovalRecord record = new()
         {
-            AraId            = araId,
-            ApproverId       = approverId,
-            JobTitleId       = auth.ActingAsJobTitleId,
-            Action           = auth.RequiredAction,
-            AraRevision      = ara.Revision,
-            Comment          = comment,
-            SequenceOrder    = auth.SequenceOrder,
-            DelegatorUserId  = auth.IsDelegated ? auth.ActingAsUserId : null,
+            AraId = araId,
+            ApproverId = approverId,
+            JobTitleId = auth.ActingAsJobTitleId,
+            Action = auth.RequiredAction,
+            AraRevision = ara.Revision,
+            Comment = comment,
+            SequenceOrder = auth.SequenceOrder,
+            DelegatorUserId = auth.IsDelegated ? auth.ActingAsUserId : null,
         };
         await _approvalRepository.CreateAsync(record, cancellationToken);
 
@@ -310,15 +310,15 @@ public sealed class AraService : IAraService
 
         ApprovalRecord record = new()
         {
-            AraId             = araId,
-            ApproverId        = userId,
-            Action            = ApprovalActionType.Reject,
-            AraRevision       = ara.Revision,
-            Comment           = request.Comment,
+            AraId = araId,
+            ApproverId = userId,
+            Action = ApprovalActionType.Reject,
+            AraRevision = ara.Revision,
+            Comment = request.Comment,
             RejectionReasonId = request.RejectionReasonId,
-            RejectionAreas    = request.RejectionAreas,
-            SequenceOrder     = sequenceOrder,
-            DelegatorUserId   = delegatorUserId,
+            RejectionAreas = request.RejectionAreas,
+            SequenceOrder = sequenceOrder,
+            DelegatorUserId = delegatorUserId,
         };
         await _approvalRepository.CreateAsync(record, cancellationToken);
         await _araRepository.UpdateStatusAsync(araId, AraStatus.Draft, ara.Revision + 1, cancellationToken: cancellationToken);
@@ -467,38 +467,38 @@ public sealed class AraService : IAraService
     private static Domain.Entities.Ara ApplyUpdate(Domain.Entities.Ara existing, UpdateAraRequest r) =>
         new()
         {
-            AraId                   = existing.AraId,
-            CategoryId              = r.CategoryId,
-            StatusId                = existing.StatusId,
-            CreatedByUserId         = existing.CreatedByUserId,
-            ProgramManagerId        = r.ProgramManagerId,
+            AraId = existing.AraId,
+            CategoryId = r.CategoryId,
+            StatusId = existing.StatusId,
+            CreatedByUserId = existing.CreatedByUserId,
+            ProgramManagerId = r.ProgramManagerId,
             ContractAdministratorId = r.ContractAdministratorId,
-            ControllerId            = r.ControllerId,
-            OpsVpUserId             = r.OpsVpUserId,
-            Reference               = r.Reference,
-            JamisId                 = r.JamisId,
-            Division                = r.Division,
-            ContractNumber          = r.ContractNumber,
-            DeliveryOrderNumber     = r.DeliveryOrderNumber,
-            ContractType            = r.ContractType,
-            OmsNumber               = r.OmsNumber,
-            Title                   = r.Title,
-            CustomerName            = r.CustomerName,
-            AmountTotal             = r.AmountTotal,
-            AmountRequested         = r.AmountRequested,
-            TotalAnticipated        = r.TotalAnticipated,
-            PercentAnticipated      = r.PercentAnticipated,
-            RevenueDescriptionId    = r.RevenueDescriptionId,
-            IsEarlyStart            = r.IsEarlyStart,
-            EarlyStartReasonId      = r.EarlyStartReasonId,
-            EarlyStartReasonOther   = r.EarlyStartReasonOther,
-            Company                 = r.Company,
-            IsEac                   = r.IsEac,
-            Revision                = existing.Revision,
-            StartDate               = r.StartDate,
-            ExpirationDate          = r.ExpirationDate,
-            ExportedAt              = existing.ExportedAt,
-            NegatedAt               = existing.NegatedAt,
-            CancelledAt             = existing.CancelledAt,
+            ControllerId = r.ControllerId,
+            OpsVpUserId = r.OpsVpUserId,
+            Reference = r.Reference,
+            JamisId = r.JamisId,
+            Division = r.Division,
+            ContractNumber = r.ContractNumber,
+            DeliveryOrderNumber = r.DeliveryOrderNumber,
+            ContractType = r.ContractType,
+            OmsNumber = r.OmsNumber,
+            Title = r.Title,
+            CustomerName = r.CustomerName,
+            AmountTotal = r.AmountTotal,
+            AmountRequested = r.AmountRequested,
+            TotalAnticipated = r.TotalAnticipated,
+            PercentAnticipated = r.PercentAnticipated,
+            RevenueDescriptionId = r.RevenueDescriptionId,
+            IsEarlyStart = r.IsEarlyStart,
+            EarlyStartReasonId = r.EarlyStartReasonId,
+            EarlyStartReasonOther = r.EarlyStartReasonOther,
+            Company = r.Company,
+            IsEac = r.IsEac,
+            Revision = existing.Revision,
+            StartDate = r.StartDate,
+            ExpirationDate = r.ExpirationDate,
+            ExportedAt = existing.ExportedAt,
+            NegatedAt = existing.NegatedAt,
+            CancelledAt = existing.CancelledAt,
         };
 }

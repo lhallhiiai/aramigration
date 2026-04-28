@@ -23,7 +23,7 @@ public sealed class LoggingEmailService : IEmailService
         ILogger<LoggingEmailService> logger)
     {
         _connectionFactory = connectionFactory;
-        _logger            = logger;
+        _logger = logger;
     }
 
     /// <inheritdoc/>

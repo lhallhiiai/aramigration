@@ -3,11 +3,20 @@ using ARA.Api.Middleware;
 using ARA.Application;
 using ARA.Application.Users;
 using ARA.Infrastructure;
+using Azure.Identity;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
+
+string? keyVaultUri = builder.Configuration["KeyVaultUri"];
+if (!string.IsNullOrWhiteSpace(keyVaultUri))
+{
+    builder.Configuration.AddAzureKeyVault(
+        new Uri(keyVaultUri),
+        new DefaultAzureCredential());
+}
 
 bool isDevAuthActive = builder.Environment.IsDevelopment()
     && string.IsNullOrWhiteSpace(builder.Configuration["Okta:Issuer"]);
@@ -24,7 +33,7 @@ else
         .AddJwtBearer(options =>
         {
             options.Authority = builder.Configuration["Okta:Issuer"];
-            options.Audience  = builder.Configuration["Okta:Audience"];
+            options.Audience = builder.Configuration["Okta:Audience"];
         });
 }
 

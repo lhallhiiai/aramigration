@@ -22,7 +22,7 @@ public sealed class ProblemDetailsMiddleware
     /// <summary>Initializes a new instance of <see cref="ProblemDetailsMiddleware"/>.</summary>
     public ProblemDetailsMiddleware(RequestDelegate next, ILogger<ProblemDetailsMiddleware> logger)
     {
-        _next   = next;
+        _next = next;
         _logger = logger;
     }
 

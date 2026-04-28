@@ -20,7 +20,7 @@ public sealed class AraExpirationHostedService : BackgroundService
         ILogger<AraExpirationHostedService> logger)
     {
         _scopeFactory = scopeFactory;
-        _logger       = logger;
+        _logger = logger;
     }
 
     /// <inheritdoc/>

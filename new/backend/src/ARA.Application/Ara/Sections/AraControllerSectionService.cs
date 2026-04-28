@@ -20,7 +20,7 @@ public sealed class AraControllerSectionService : IAraControllerSectionService
         ILogger<AraControllerSectionService> logger)
     {
         _repository = repository;
-        _logger     = logger;
+        _logger = logger;
     }
 
     /// <inheritdoc/>
@@ -35,13 +35,13 @@ public sealed class AraControllerSectionService : IAraControllerSectionService
     {
         AraControllerSection section = new()
         {
-            AraId         = araId,
-            ControllerId  = controllerId,
+            AraId = araId,
+            ControllerId = controllerId,
             InterestImpact = request.InterestImpact,
-            BurnRate      = request.BurnRate,
-            IncurredCost  = request.IncurredCost,
-            IncurredFee   = request.IncurredFee,
-            Company       = request.Company,
+            BurnRate = request.BurnRate,
+            IncurredCost = request.IncurredCost,
+            IncurredFee = request.IncurredFee,
+            Company = request.Company,
         };
 
         await _repository.UpsertAsync(section, cancellationToken);

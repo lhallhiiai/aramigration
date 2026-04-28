@@ -20,8 +20,8 @@ public sealed class DelegationService : IDelegationService
         ILogger<DelegationService> logger)
     {
         _delegationRepository = delegationRepository;
-        _userRepository       = userRepository;
-        _logger               = logger;
+        _userRepository = userRepository;
+        _logger = logger;
     }
 
     /// <inheritdoc/>
@@ -77,8 +77,8 @@ public sealed class DelegationService : IDelegationService
         {
             DelegatorUserId = delegatorUserId,
             DelegateeUserId = request.DelegateeUserId,
-            StartDate       = request.StartDate,
-            EndDate         = request.EndDate,
+            StartDate = request.StartDate,
+            EndDate = request.EndDate,
         };
 
         int delegationId = await _delegationRepository.CreateAsync(delegation, cancellationToken);

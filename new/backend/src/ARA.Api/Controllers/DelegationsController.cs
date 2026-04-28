@@ -22,9 +22,9 @@ public sealed class DelegationsController : ControllerBase
         ICurrentUserService currentUserService,
         ILogger<DelegationsController> logger)
     {
-        _delegationService  = delegationService;
+        _delegationService = delegationService;
         _currentUserService = currentUserService;
-        _logger             = logger;
+        _logger = logger;
     }
 
     /// <summary>Returns all currently active delegations.</summary>

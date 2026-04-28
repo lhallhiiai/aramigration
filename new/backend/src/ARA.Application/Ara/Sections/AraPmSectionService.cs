@@ -15,7 +15,7 @@ public sealed class AraPmSectionService : IAraPmSectionService
     public AraPmSectionService(IAraPmSectionRepository repository, ILogger<AraPmSectionService> logger)
     {
         _repository = repository;
-        _logger     = logger;
+        _logger = logger;
     }
 
     /// <inheritdoc/>
@@ -30,17 +30,17 @@ public sealed class AraPmSectionService : IAraPmSectionService
     {
         AraPmSection section = new()
         {
-            AraId                 = araId,
-            FundsInAdvance        = request.FundsInAdvance,
-            ContractDefinization  = request.ContractDefinization,
-            PertinentInformation  = request.PertinentInformation,
-            WorkStarted           = request.WorkStarted,
-            Consequence           = request.Consequence,
-            CurrentStatus         = request.CurrentStatus,
-            ChangeInScope         = request.ChangeInScope,
-            ActionToClear         = request.ActionToClear,
-            EarlyStartNecessary   = request.EarlyStartNecessary,
-            OtherNecessary        = request.OtherNecessary,
+            AraId = araId,
+            FundsInAdvance = request.FundsInAdvance,
+            ContractDefinization = request.ContractDefinization,
+            PertinentInformation = request.PertinentInformation,
+            WorkStarted = request.WorkStarted,
+            Consequence = request.Consequence,
+            CurrentStatus = request.CurrentStatus,
+            ChangeInScope = request.ChangeInScope,
+            ActionToClear = request.ActionToClear,
+            EarlyStartNecessary = request.EarlyStartNecessary,
+            OtherNecessary = request.OtherNecessary,
         };
 
         await _repository.UpsertAsync(section, cancellationToken);

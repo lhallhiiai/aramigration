@@ -20,4 +20,22 @@ export default defineConfig([
       globals: globals.browser,
     },
   },
+  {
+    // shadcn/ui baseline files are vendored and never modified directly per
+    // CLAUDE.md. Rules that flag patterns inside the upstream code are not
+    // actionable for us, so silence them in this directory only.
+    files: ['src/components/ui/**/*.{ts,tsx}'],
+    rules: {
+      'react-refresh/only-export-components': 'off',
+      'react-hooks/purity': 'off',
+    },
+  },
+  {
+    // The Vite entry file does not export components — it calls
+    // createRoot().render(). The Fast Refresh rule is not applicable here.
+    files: ['src/main.tsx'],
+    rules: {
+      'react-refresh/only-export-components': 'off',
+    },
+  },
 ])

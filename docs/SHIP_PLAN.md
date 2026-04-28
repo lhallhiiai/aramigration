@@ -183,7 +183,9 @@ When a future session opens this file, it can resume work without re-deriving co
 
 ---
 
-### Item 5 — Application Insights + real health checks [ ]
+### Item 5 — Application Insights + real health checks [~]
+
+**Started:** 2026-04-28
 
 - **What it means:** Wire Application Insights into the backend with the connection string sourced from Key Vault. Replace the placeholder `/health` endpoint with a real readiness probe: database connectivity, Key Vault reachability, Costpoint-import-data freshness, and Okta metadata reachability. Keep `/health/live` cheap.
 - **Why it blocks ship:** No telemetry = blind in production. The default `/health` returns 200 even when the DB is down; operators have nothing to monitor.

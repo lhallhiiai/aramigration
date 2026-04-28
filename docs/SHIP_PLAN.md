@@ -71,7 +71,9 @@ When a future session opens this file, it can resume work without re-deriving co
 
 ---
 
-### Item 2 — Secrets extraction (Okta + connection string → Key Vault) [ ]
+### Item 2 — Secrets extraction (Okta + connection string → Key Vault) [~]
+
+**Started:** 2026-04-28
 
 - **What it means:** Move Okta clientId / issuer and the database connection string out of `appsettings*.json` and any committed env files. Wire Azure Key Vault references via Container App managed identity for production. Local dev uses .NET user-secrets and `.env.local`.
 - **Why it blocks ship:** Secrets in source = security incident risk and an audit blocker. Connection string injection is also a runtime requirement — `appsettings.json` currently has an empty connection string, so this is also a "boots in prod" issue.

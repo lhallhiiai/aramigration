@@ -298,3 +298,4 @@ Append findings, follow-ups, and gotchas here as items complete. Keep entries da
 Append `Item N completed YYYY-MM-DD — <commit SHA(s)>` lines here as items finish.
 
 - Item 1 completed 2026-04-28 — `0ca0a8b` (docs + SHIP_PLAN flip), built on prior work in `scripts/Invoke-AraDataMigration.ps1` and `scripts/Copy-AraProductionData.ps1`
+- Item 2 completed 2026-04-28 — `4174fa2` (api Key Vault wiring), `61c63d1` (frontend env-driven Okta), `18e7b1c` (docs + SHIP_PLAN flip)

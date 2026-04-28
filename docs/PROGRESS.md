@@ -71,4 +71,77 @@ Created `feature/phase2-workflow-foundation` branch from `dev`.
 
 ---
 
-## Phase 2 — ARA Workflow — STARTING
+## Phase 2 — ARA Workflow — COMPLETE (2026-04-27)
+
+### 2.4 — Email Notifications (Stub with Logging)
+
+- Created `IEmailService` interface, `EmailMessage`, `EmailEventType`, `AraEmailBuilder`
+- Implemented `LoggingEmailService` in Infrastructure — writes to `EmailLog` via SP
+- Integrated email dispatch into all 7 workflow transitions in AraService
+- `SendEmailSafeAsync` wrapper ensures email failures never break the workflow
+- `CollectPriorActorEmailsAsync` gathers PM, CA, Controller, and approver emails
+- Updated AraServiceTests with new IEmailService + IUserRepository mock dependencies
+- **Commit:** `66df387`
+
+### 2.6 — ARA Expiration Auto-Transition
+
+- Added `ExpireOverdueAsync` to IAraRepository and AraRepository (calls usp_AraExpireOverdue)
+- Created `AraExpirationHostedService` (BackgroundService) running every hour
+- Registered in Program.cs
+- **Commit:** `fcf787a`
+
+### 2.7 — Search & Dashboard Backend
+
+- **Decision D005:** No new implementation needed — existing SPs and endpoints already serve
+  all frontend data requirements (Dashboard status cards, expiration table, search)
+- Documented in DECISIONS.md
+
+### 2.8 — Negation Flow
+
+- Updated `WorkflowActionBar.tsx` to allow negation on Approved status (per D004)
+- Updated `ArchivedPage.tsx` to show Negate button for Approved ARAs
+- Created `006_archived_includes_approved.sql` — updated usp_AraGetArchived to include Approved
+- **Commit:** `bab5820`
+
+### 2.2 — CLIN Worksheet Business Rules
+
+- Added `GetSummaryAsync` to ClinEntryService with soft-warning flag
+- Created `ClinSummaryDto` (TotalCost, TotalFee, GrandTotal, AraAmount, ExceedsAraAmount)
+- Added `GET /api/aras/{araId}/clins/summary` endpoint
+- 2 new tests for over/under budget scenarios
+- **Commit:** `f48460d`
+
+### 2.3 — Document Upload with PDF Validation
+
+- Added PDF-only validation (file must end with .pdf)
+- Added 5MB size limit validation
+- Added empty filename validation
+- Updated `CreateDocumentRequest` with optional `FileSizeBytes` parameter
+- 4 new tests for validation rules
+- **Commit:** `d243a7a`
+
+### 2.1 + 2.5 — End-to-End Workflow & Approval Integration Tests
+
+- Created `AraWorkflowIntegrationTests` (5 tests) in Infrastructure.Tests:
+  - ARA creation, status transitions, rejection + revision, expiration, approval log
+- Tests use transactional rollback for database isolation
+- Skip gracefully when no DB connection configured
+- **Commit:** `96eba0d`
+
+### Phase 2 Summary
+
+| Metric | Count |
+| ------ | ----- |
+| Backend unit tests | 91 |
+| Backend integration tests | 15 |
+| Frontend tests | 36 |
+| **Total tests** | **142** |
+| New SQL migration scripts | 1 (006) |
+| New stored procedures updated | 1 (usp_AraGetArchived) |
+| Email event types covered | 7 |
+| Commits this phase | 7 |
+| Autonomous decisions | 2 (D004, D005) |
+
+---
+
+## Phase 3 — Hardening — STARTING

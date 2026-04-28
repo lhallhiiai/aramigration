@@ -23,13 +23,5 @@ public sealed class CreateAraRequestValidator : AbstractValidator<CreateAraReque
 
         RuleFor(x => x.AmountTotal)
             .GreaterThan(0).WithMessage("AmountTotal must be greater than zero.");
-
-        RuleFor(x => x.OmsNumber)
-            .NotEmpty().When(x => x.IsEarlyStart)
-            .WithMessage("OmsNumber is required for Early Start ARAs.");
-
-        RuleFor(x => x.ContractNumber)
-            .NotEmpty().When(x => !x.IsEarlyStart)
-            .WithMessage("ContractNumber is required for Non-Early Start ARAs.");
     }
 }

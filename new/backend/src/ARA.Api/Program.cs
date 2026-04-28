@@ -53,6 +53,7 @@ builder.Services.AddCors(options =>
 
 WebApplication app = builder.Build();
 
+app.UseMiddleware<ARA.Api.Middleware.ProblemDetailsMiddleware>();
 app.UseHttpsRedirection();
 app.UseCors("AraFrontend");
 app.UseAuthentication();

@@ -3,10 +3,12 @@ using ARA.Api.Middleware;
 using ARA.Application;
 using ARA.Application.Users;
 using ARA.Infrastructure;
+using ARA.Infrastructure.HealthChecks;
 using Azure.Identity;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
@@ -39,7 +41,27 @@ else
 
 builder.Services.AddAuthorization();
 
-builder.Services.AddHealthChecks();
+// Application Insights. The connection string lives at
+// "ApplicationInsights:ConnectionString" — in production this key is sourced
+// from Key Vault by the AddAzureKeyVault call above, with no source-controlled
+// fallback. When the key is empty (typical local dev), the SDK no-ops and
+// telemetry simply isn't published.
+builder.Services.AddApplicationInsightsTelemetry(options =>
+{
+    options.ConnectionString = builder.Configuration["ApplicationInsights:ConnectionString"];
+});
+
+// Typed HttpClient for the Okta OIDC discovery probe — short timeout so a
+// hung Okta endpoint can't block the readiness probe.
+builder.Services.AddHttpClient(OktaMetadataHealthCheck.HttpClientName, client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(5);
+});
+
+builder.Services.AddHealthChecks()
+    .AddCheck<SqlConnectivityHealthCheck>("sql", tags: ["ready"])
+    .AddCheck<KeyVaultHealthCheck>("keyvault", tags: ["ready"])
+    .AddCheck<OktaMetadataHealthCheck>("okta", tags: ["ready"]);
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddInfrastructure();
@@ -68,7 +90,24 @@ app.UseCors("AraFrontend");
 app.UseAuthentication();
 app.UseMiddleware<JitUserProvisioningMiddleware>();
 app.UseAuthorization();
-app.MapHealthChecks("/health");
+
+// Liveness: cheap — process is up. No dependency calls. K8s/Container Apps
+// uses this to decide whether to restart the container.
+app.MapHealthChecks("/health/live", new HealthCheckOptions
+{
+    Predicate = static _ => false,
+});
+
+// Readiness: real dependency checks (SQL, Key Vault, Okta discovery).
+// Returns 200 when Healthy, 200 with degraded JSON when any check is Degraded,
+// 503 when any check is Unhealthy. Fronting load balancer / probe should
+// exclude the instance from rotation on 503.
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = static r => r.Tags.Contains("ready"),
+    ResponseWriter = HealthCheckResponseWriter.WriteJsonResponse,
+});
+
 app.MapControllers();
 
 app.Run();

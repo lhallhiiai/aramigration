@@ -286,4 +286,4 @@ Append findings, follow-ups, and gotchas here as items complete. Keep entries da
 
 Append `Item N completed YYYY-MM-DD — <commit SHA(s)>` lines here as items finish.
 
-- *(no entries yet)*
+- Item 1 completed 2026-04-28 — `0ca0a8b` (docs + SHIP_PLAN flip), built on prior work in `scripts/Invoke-AraDataMigration.ps1` and `scripts/Copy-AraProductionData.ps1`

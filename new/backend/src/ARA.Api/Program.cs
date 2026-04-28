@@ -66,6 +66,7 @@ app.UseMiddleware<ARA.Api.Middleware.ProblemDetailsMiddleware>();
 app.UseHttpsRedirection();
 app.UseCors("AraFrontend");
 app.UseAuthentication();
+app.UseMiddleware<JitUserProvisioningMiddleware>();
 app.UseAuthorization();
 app.MapHealthChecks("/health");
 app.MapControllers();

@@ -26,6 +26,7 @@ public static class ApplicationServiceExtensions
         services.AddScoped<ICategoryService, CategoryService>();
         services.AddScoped<IJobTitleService, JobTitleService>();
         services.AddScoped<IUserService, UserService>();
+        services.AddScoped<IUserProvisioningService, UserProvisioningService>();
         services.AddScoped<IAraService, AraService>();
         services.AddScoped<IAraPmSectionService, AraPmSectionService>();
         services.AddScoped<IAraControllerSectionService, AraControllerSectionService>();

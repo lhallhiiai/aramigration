@@ -6,7 +6,10 @@ namespace ARA.Api;
 
 /// <summary>
 /// Resolves the authenticated caller to a local database user record.
-/// Returns null when no matching record exists (e.g. the dev user seed has not been inserted).
+/// Returns null only when no caller is authenticated. The JIT user provisioning
+/// middleware (registered before authorization) ensures every authenticated
+/// caller has a row before this method runs, so a missing row past that point
+/// is a hard failure rather than a silent null.
 /// </summary>
 public sealed class CurrentUserService : ICurrentUserService
 {
@@ -29,7 +32,7 @@ public sealed class CurrentUserService : ICurrentUserService
     public async Task<UserDto?> GetCurrentUserAsync(CancellationToken cancellationToken = default)
     {
         ClaimsPrincipal? principal = _httpContextAccessor.HttpContext?.User;
-        if (principal is null)
+        if (principal?.Identity?.IsAuthenticated != true)
             return null;
 
         // Production: Okta sets the "sub" claim.
@@ -39,15 +42,15 @@ public sealed class CurrentUserService : ICurrentUserService
 
         if (string.IsNullOrWhiteSpace(externalUserId))
         {
-            _logger.LogWarning("No identity claim found on authenticated principal.");
-            return null;
+            throw new InvalidOperationException(
+                "Authenticated principal has no sub or NameIdentifier claim. JIT provisioning should have rejected the request before reaching this point.");
         }
 
         ARA.Domain.Entities.User? user = await _userRepository.GetByExternalUserIdAsync(externalUserId, cancellationToken);
         if (user is null)
         {
-            _logger.LogWarning("Authenticated user {ExternalUserId} has no matching database record.", externalUserId);
-            return null;
+            throw new InvalidOperationException(
+                $"Authenticated user '{externalUserId}' has no local user row. JIT provisioning should have created one before reaching this point.");
         }
 
         return new UserDto(user.UserId, user.DisplayName, user.FirstName, user.LastName, user.Email, user.Role, user.JobTitleId);

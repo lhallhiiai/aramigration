@@ -39,6 +39,19 @@ when no database connection is configured. The trade-off is that these tests sho
 rather than "skipped" in test output, but this is acceptable since the tests are clearly
 documented as requiring a database connection.
 
+## D005 — Search & Dashboard Already Complete (2026-04-27)
+
+**Decision:** Phase 2.7 (Search & Dashboard backend) requires no additional implementation.
+The existing stored procedures, service methods, and controller endpoints already serve all
+data the frontend needs.
+
+**Rationale:** The Dashboard page uses `useArasByStatus` (4 status cards) and `useExpirationAras`
+— both backed by existing SPs. The Search page uses `useAraSearch` → `usp_AraSearchById`. The
+My Action List uses `useArasPending` → `usp_AraGetPendingForUser`. The plan proposed adding
+pagination and a full-text search SP, but the frontend doesn't implement pagination (it loads
+all matching records) and the quick-search pattern is sufficient for the expected data volume
+(internal tool, hundreds of ARAs, not millions). Pagination can be added later if needed.
+
 ## D004 — Negation Allowed on Approved Status (2026-04-27)
 
 **Decision:** The `NegateAsync` method accepts ARAs in both `Approved` and `Exported` status,

@@ -68,7 +68,7 @@ export function WorkflowActionBar({
   const canCancel = isPm && !isTerminalStatus(ara.status);
   const canNegate =
     currentUser.role === UserRole.ContractAdministrator &&
-    ara.status === AraStatus.Exported;
+    (ara.status === AraStatus.Approved || ara.status === AraStatus.Exported);
 
   const hasAnyAction =
     canSubmitPm ||

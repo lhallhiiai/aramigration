@@ -456,15 +456,18 @@ Any git command that modifies historyƒ
 The ARA (At Risk Authorization) application is a web-based workflow system
 for submitting, routing, reviewing, and approving authorizations to spend
 company funds on work before a contract modification or award is received.
-It integrates with Costpoint (the accounting/ERP system, via DBA-managed
-database imports — not a live API) to validate inputs such as Org, CLIN,
-and Contract Number data.
+It does not integrate with any external accounting / ERP system. Org,
+Contract Number, and CLIN entries on an ARA are free-text fields, matching
+legacy ARA behavior.
 
 > **Note:** The legacy system referenced JAMIS and OMS integrations. The
 > company no longer uses JAMIS or OMS. All references to JAMIS export and
 > OMS lookups are OBE (Overcome By Events). Costpoint has replaced JAMIS
-> as the ERP system. CLIN data is populated by a DBA with a pull from
-> Costpoint — ARA does not communicate with Costpoint directly.
+> as the company's ERP system, but ARA does not read or validate against
+> Costpoint data. The legacy ARA app had a `CameFromJamis` flag on CLINs
+> but it was never used in production (verified 2026-04-28: 0 of 11,716
+> historical CLIN rows had `CameFromJamis = 1`). Org, Contract Number,
+> and CLIN entries are free-text — matching legacy behavior.
 
 There are exactly two ARA types. Always enforce this distinction throughout
 the system:
@@ -694,9 +697,11 @@ in their place.
 
 #### CLIN Worksheet Rules (Non-Early Start Controller Only)
 
-- Must pre-populate available CLINs from the local database (sourced from
-  Costpoint via DBA import) for the entered contract.
-- Must enforce that each pre-populated CLIN can only be used once per ARA.
+- CLIN numbers are entered by the Controller as free text. The legacy app
+  had a JAMIS pre-population feature, but it was never used in production
+  (0 of 11,716 historical CLIN rows came from JAMIS); the new system
+  matches legacy free-text entry behavior.
+- Must enforce that each CLIN number can only be used once per ARA.
 - Must auto-calculate and display Total Cost, Total Fees, and Total when
   CLIN entries are complete. Never require manual entry of these totals.
 - CLIN funding cap is a **soft warning**: if the combined Cost and Fee
@@ -751,14 +756,16 @@ Contract support of Award fee, 75% / 85% Letter & Binding Documents to
 Customer, Customer Confirmation, Contract Schedule, Copy of HII MTD
 proposal, Change Notification / Authorization. All others are optional.
 
-#### Autocomplete Validation
+#### Free-text Reference Fields
 
-- Must validate Org input against local database (sourced from Costpoint:
-  Sector, Group, Operation, Division, Description). Never allow free-text
-  Org values.
-- Must validate Contract Number against local database (sourced from
-  Costpoint via DBA import).
-- Always display a dropdown of matching values as the user types.
+- Org, Contract Number, and CLIN inputs are free-text per legacy ARA
+  behavior. The legacy system stored these as `varchar(50)` and never
+  validated against any external reference source; the new system
+  matches that.
+- No autocomplete or dropdown is required for these fields.
+- Future enhancement: if a Costpoint or other reference source becomes
+  available, validation can be added. Until then, treat these as
+  user-entered free text.
 
 #### Negation
 
@@ -813,7 +820,7 @@ the business owner.
 | **ARA** | At Risk Authorization — a formal internal authorization to spend funds or recognize revenue before a contract modification or award is received. |
 | **AJERAS** | Alion Journal Entry and Revenue Adjustment System — the parent application suite that hosts the ARA module. |
 | **JAMIS** | **LEGACY — NO LONGER USED.** The former accounting/ERP system. Replaced by Costpoint. All JAMIS export functionality is OBE. |
-| **Costpoint** | The company's current accounting/ERP system. ARA pulls Org, CLIN, and Contract Number data from a local database populated by DBA imports from Costpoint. ARA does not communicate with Costpoint directly. |
+| **Costpoint** | The company's current accounting/ERP system. ARA does not currently read or validate against Costpoint data. The legacy ARA app had a `CameFromJamis` flag on CLINs but it was never used in production (verified 2026-04-28: 0 of 11,716 rows). Costpoint integration is a deferred / aspirational enhancement, not a current requirement. |
 | **OMS** | **LEGACY — NO LONGER USED.** Opportunity Management System — formerly used for Early Start ARA lookups. |
 | **Early Start** | An ARA for Pre-Contract Costs where the customer has authorized work in writing before a definitized contract exists. |
 | **Non-Early Start** | Any ARA risk category other than Pre-Contract Costs; always tied to an existing contract. |
@@ -843,8 +850,9 @@ the business owner.
 
 ### Constraints and System Requirements
 
-- Must read Org, CLIN, and Contract Number data from the local database
-  (populated by DBA imports from Costpoint). No live API integration.
+- Org, Contract Number, and CLIN inputs are free-text per legacy
+  behavior. ARA does not read or validate against Costpoint or any
+  external reference source.
 - Must send automated email at every defined stage transition.
 - Must support role-based access control for at minimum: Creator/PM,
   Contract Administrator, Controller, Approver.

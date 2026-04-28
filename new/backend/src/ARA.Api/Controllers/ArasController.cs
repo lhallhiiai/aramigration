@@ -33,12 +33,12 @@ public sealed class ArasController : ControllerBase
         ICurrentUserService currentUserService,
         ILogger<ArasController> logger)
     {
-        _araService               = araService;
-        _pmSectionService         = pmSectionService;
+        _araService = araService;
+        _pmSectionService = pmSectionService;
         _controllerSectionService = controllerSectionService;
-        _approvalRoutingService   = approvalRoutingService;
-        _currentUserService       = currentUserService;
-        _logger                   = logger;
+        _approvalRoutingService = approvalRoutingService;
+        _currentUserService = currentUserService;
+        _logger = logger;
     }
 
     // ── List endpoints ─────────────────────────────────────────────────────────

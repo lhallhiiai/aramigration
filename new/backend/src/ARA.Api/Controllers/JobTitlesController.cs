@@ -17,7 +17,7 @@ public sealed class JobTitlesController : ControllerBase
     public JobTitlesController(IJobTitleService jobTitleService, ILogger<JobTitlesController> logger)
     {
         _jobTitleService = jobTitleService;
-        _logger          = logger;
+        _logger = logger;
     }
 
     /// <summary>Returns all active job titles ordered by display order.</summary>

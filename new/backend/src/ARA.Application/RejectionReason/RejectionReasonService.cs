@@ -15,7 +15,7 @@ public sealed class RejectionReasonService : IRejectionReasonService
     public RejectionReasonService(IRejectionReasonRepository repository, ILogger<RejectionReasonService> logger)
     {
         _repository = repository;
-        _logger     = logger;
+        _logger = logger;
     }
 
     /// <inheritdoc/>

@@ -17,7 +17,7 @@ public sealed class ApprovalController : ControllerBase
     public ApprovalController(IApprovalRecordService approvalService, ILogger<ApprovalController> logger)
     {
         _approvalService = approvalService;
-        _logger          = logger;
+        _logger = logger;
     }
 
     /// <summary>

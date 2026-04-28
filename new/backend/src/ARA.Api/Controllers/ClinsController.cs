@@ -17,7 +17,7 @@ public sealed class ClinsController : ControllerBase
     public ClinsController(IClinEntryService clinService, ILogger<ClinsController> logger)
     {
         _clinService = clinService;
-        _logger      = logger;
+        _logger = logger;
     }
 
     /// <summary>Returns all CLIN entries for the given ARA.</summary>

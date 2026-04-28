@@ -351,8 +351,11 @@ public sealed class ApprovalRoutingServiceTests
         List<ApprovalRecord> records = completedSequences
             .Select(seq => new ApprovalRecord
             {
-                AraId = TestAraId, ApproverId = seq * 10, SequenceOrder = seq,
-                Action = ApprovalActionType.Approve, AraRevision = 1
+                AraId = TestAraId,
+                ApproverId = seq * 10,
+                SequenceOrder = seq,
+                Action = ApprovalActionType.Approve,
+                AraRevision = 1
             })
             .ToList();
         _approvalRepo.Setup(r => r.GetByAraIdAndRevisionAsync(TestAraId, 1, It.IsAny<CancellationToken>()))

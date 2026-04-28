@@ -15,7 +15,7 @@ public sealed class DocumentService : IDocumentService
     public DocumentService(IDocumentRepository documentRepository, ILogger<DocumentService> logger)
     {
         _documentRepository = documentRepository;
-        _logger             = logger;
+        _logger = logger;
     }
 
     /// <inheritdoc/>
@@ -30,11 +30,11 @@ public sealed class DocumentService : IDocumentService
     {
         AraDocument document = new()
         {
-            AraId            = araId,
-            FileName         = request.FileName,
-            StoragePath      = request.StoragePath,
+            AraId = araId,
+            FileName = request.FileName,
+            StoragePath = request.StoragePath,
             UploadedByUserId = uploadedByUserId,
-            UploadedAt       = DateTime.UtcNow,
+            UploadedAt = DateTime.UtcNow,
         };
 
         int araDocumentId = await _documentRepository.CreateAsync(document, cancellationToken);

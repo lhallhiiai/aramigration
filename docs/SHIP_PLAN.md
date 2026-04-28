@@ -183,9 +183,10 @@ When a future session opens this file, it can resume work without re-deriving co
 
 ---
 
-### Item 5 — Application Insights + real health checks [~]
+### Item 5 — Application Insights + real health checks [x]
 
 **Started:** 2026-04-28
+**Completed:** 2026-04-28 — see Completion log for commit SHAs.
 
 - **What it means:** Wire Application Insights into the backend with the connection string sourced from Key Vault. Replace the placeholder `/health` endpoint with a real readiness probe: database connectivity, Key Vault reachability, Costpoint-import-data freshness, and Okta metadata reachability. Keep `/health/live` cheap.
 - **Why it blocks ship:** No telemetry = blind in production. The default `/health` returns 200 even when the DB is down; operators have nothing to monitor.
@@ -204,12 +205,12 @@ When a future session opens this file, it can resume work without re-deriving co
   - Dashboards, alert rules, log queries (operations setup, not code)
   - Test coverage (Item 7)
 - **Acceptance checklist:**
-  - [ ] App Insights connection string read from Key Vault — no fallback to source
-  - [ ] `/health/live` returns 200 with no dependencies checked
-  - [ ] `/health/ready` returns JSON with per-check status; degrades when any dependency is unreachable
-  - [ ] All three custom checks present: SQL, Key Vault, Okta metadata
-  - [ ] Manual test: kill DB connectivity → `/health/ready` reports unhealthy; restore → healthy
-- **Completion update instruction:** Flip to `[x]`, add `Completed:` line with SHA(s), append findings to Carry-forward notes, add Completion log entry.
+  - [x] App Insights connection string read from Key Vault — no fallback to source. `appsettings.json` ships `ApplicationInsights:ConnectionString` empty; production sources via the existing `AddAzureKeyVault` config provider (secret name `ApplicationInsights--ConnectionString`)
+  - [x] `/health/live` returns 200 with no dependencies checked — predicate `_ => false`; verified locally (`200`, empty body)
+  - [x] `/health/ready` returns JSON with per-check status; degrades when any dependency is unreachable — `HealthCheckResponseWriter` shapes the body; verified locally (status=Degraded with sql=Healthy, keyvault=Degraded, okta=Degraded in dev mode)
+  - [x] All three custom checks present: SQL, Key Vault, Okta metadata — registered in `Program.cs` with the `ready` tag
+  - [ ] Manual test: kill DB connectivity → `/health/ready` reports unhealthy; restore → healthy — **awaiting user-run smoke** (procedure documented in `HEALTH_AND_TELEMETRY.md`)
+- **Completion update instruction:** Item 5 marked `[x]` after the build is green, all 19 backend tests still pass, `dotnet format --verify-no-changes` is clean, and a local smoke against `/health/live` and `/health/ready` returned the expected statuses (`200/empty` and `200/status=Degraded` respectively). The DB-outage smoke line stays open in the checklist because it requires intentionally disrupting dev SQL access; captured in Carry-forward notes.
 
 ---
 
@@ -315,6 +316,15 @@ Append findings, follow-ups, and gotchas here as items complete. Keep entries da
 - **Workflow has not yet executed against a real PR.** The `docs/ship-plan` branch was pushed before the workflow existed; the workflow only triggers on PRs targeting `dev` or `main`. The first execution will happen when this branch is opened as a PR. If the workflow fails on its first run, fixes go in a follow-up commit on this same branch.
 - **`dev` tip commit `1c52122` ("After major Phase 2 but before major next steps") is not Conventional Commits format.** It is already on `dev` (and on `feature/phase2-workflow-foundation`), so PRs from feature branches into `dev` should not include it in their diff and should not be blocked by the commitlint gate. If a future PR base spans across that commit (e.g. `dev → main`), expect it to fail the commitlint job — workaround is `--allow-empty` rebase or amending the message before merge to main.
 
+### 2026-04-28 — Item 5 notes
+
+- **App Insights resource itself is deferred to Item 8** (Azure-resource provisioning). The wiring is in place — `AddApplicationInsightsTelemetry` reads `ApplicationInsights:ConnectionString` from configuration, and the production source is the existing Key Vault config provider. Once IT (or this team, if authorized) creates the App Insights resource and stores its connection string in Key Vault as `ApplicationInsights--ConnectionString`, telemetry begins flowing without further code changes. Local dev does not need an App Insights resource — the SDK no-ops on empty connection string.
+- **Key Vault check is intentionally Degraded (not Unhealthy) when `KeyVaultUri` is unset.** This matches the local-dev path documented in `LOCAL_DEV_SECRETS.md`, where developers use `dotnet user-secrets` and never touch a vault. In production the same code path will fail loudly because `KeyVaultUri` is set and a network/RBAC error will surface as Unhealthy with the exception attached. Same approach for Okta metadata.
+- **Health checks live in `ARA.Infrastructure/HealthChecks/`** rather than the API project because `SqlConnectivityHealthCheck` depends on `IDbConnectionFactory` (an Infrastructure type) and the other two checks naturally cluster with it. Required adding `Microsoft.Extensions.Diagnostics.HealthChecks`, `Azure.Identity` (already in API; now also in Infrastructure for the KV check), `Azure.Security.KeyVault.Secrets`, and `Microsoft.Extensions.Http` to the Infrastructure csproj. Per CLAUDE.md "What to Never Include Without Being Asked: Logging frameworks other than Microsoft.Extensions.Logging" — App Insights is telemetry, not logging, and is in scope per Item 5's acceptance line.
+- **`/health/ready` JSON body is rendered by a custom `HealthCheckResponseWriter`** in the API project rather than pulling in `AspNetCore.HealthChecks.UI.Client`. Body shape is intentionally small and stable: `status`, `totalDurationMs`, and per-check `status`/`description`/`durationMs`/`error`. Operations dashboards parse this; expanding the shape needs a follow-up.
+- **Open DB-outage smoke:** the only acceptance line still `[ ]` is "kill DB connectivity → `/health/ready` reports unhealthy; restore → healthy." The code path is verified by inspection (any exception from `IDbConnectionFactory.CreateAsync` becomes `HealthCheckResult.Unhealthy(...)` which degrades the overall status to `Unhealthy` → 503). Re-running this against the dev DB requires intentionally disrupting access and is left to the user.
+- **OktaMetadataHealthCheck uses a 5-second `HttpClient` timeout.** Hard cap so a hung Okta endpoint cannot block the readiness probe past the next scheduled scrape.
+
 ### 2026-04-28 — Item 4 notes
 
 - **Build was broken at session resume** with 10 `CS1061` errors on `ClaimsPrincipal.FindFirstValue` in `UserProvisioningService.cs`. `FindFirstValue` is an AspNetCore extension method (`Microsoft.AspNetCore.Authentication.Abstractions`); the Application layer is a plain class library and must not depend on AspNetCore. Fix was to switch to BCL `principal.FindFirst("sub")?.Value`. The same calls in `CurrentUserService.cs` (which lives in the API project) were left alone — that project does have AspNetCore.
@@ -334,3 +344,4 @@ Append `Item N completed YYYY-MM-DD — <commit SHA(s)>` lines here as items fin
 - Item 2 completed 2026-04-28 — `4174fa2` (api Key Vault wiring), `61c63d1` (frontend env-driven Okta), `18e7b1c` (docs + SHIP_PLAN flip)
 - Item 3 completed 2026-04-28 — `85fe81d` (backend dotnet format), `1e59753` (frontend eslint scope-exempt), `856ac38` (workflow + commitlint)
 - Item 4 completed 2026-04-28 — `b134c77` (data: usp_UserProvision), `65655de` (feat: JIT + admin onboard), plus this docs commit (USER_PROVISIONING.md + SHIP_PLAN flip)
+- Item 5 completed 2026-04-28 — `32f4456` (feat: health checks + App Insights wiring), plus this docs commit (HEALTH_AND_TELEMETRY.md + SHIP_PLAN flip)

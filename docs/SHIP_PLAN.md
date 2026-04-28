@@ -106,7 +106,9 @@ When a future session opens this file, it can resume work without re-deriving co
 
 ---
 
-### Item 3 — CI/CD pipeline (PR validation) [ ]
+### Item 3 — CI/CD pipeline (PR validation) [~]
+
+**Started:** 2026-04-28
 
 - **What it means:** Add automated PR validation. Gates: build backend, build frontend, lint, format check, commit-message check (Conventional Commits). **No test execution gate yet — that lands in Item 7.** Branch protection on `dev` and `main` to require this check.
 - **Pipeline location:** GitHub Actions (`.github/workflows/`). Repo is hosted on GitHub (`lhallhiiai/aramigration`); `gh` CLI is already in use; Azure DevOps is not present in the repo. Calling this out per the planning brief.

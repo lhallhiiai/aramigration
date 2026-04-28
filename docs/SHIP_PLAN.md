@@ -30,7 +30,9 @@ When a future session opens this file, it can resume work without re-deriving co
 
 ## Items (in execution order)
 
-### Item 1 — Historical data migration (`ara_legacy` → `ara_new`) [ ]
+### Item 1 — Historical data migration (`ara_legacy` → `ara_new`) [~]
+
+**Started:** 2026-04-28
 
 - **What it means:** Build a PowerShell migration script that copies historical ARA data from the `ara_legacy` database into the new `ara_new` schema, mapping legacy lowercase columns to the new PascalCase schema. The script is the deliverable; the user will run it against an updated copy of `ara_legacy` when one is provided.
 - **Background context (2026-04-28):** The original Item 1 was "Costpoint import." Investigation of `ara_legacy` showed: no Costpoint reference tables anywhere on the server; Org and Contract Number were always free-text in the legacy app; 0 of 11,716 historical CLIN rows came from JAMIS/Costpoint pre-population. Product decision: ARA matches legacy free-text behavior. The Costpoint validation rules in CLAUDE.md were stripped accordingly (commit referenced in Carry-forward notes). What remains for Item 1 is bringing the historical record forward.

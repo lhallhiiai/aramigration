@@ -83,4 +83,37 @@ public sealed class UserRepository : IUserRepository
         IEnumerable<User> results = await connection.QueryAsync<User>(cmd);
         return results.ToList().AsReadOnly();
     }
+
+    /// <inheritdoc/>
+    public async Task<User> ProvisionAsync(
+        string externalUserId,
+        string email,
+        string displayName,
+        string? firstName,
+        string? lastName,
+        int roleId = 1,
+        CancellationToken cancellationToken = default)
+    {
+        using IDbConnection connection = await _connectionFactory.CreateAsync(cancellationToken);
+        CommandDefinition cmd = new(
+            commandText: "usp_UserProvision",
+            parameters: new
+            {
+                ExternalUserId = externalUserId,
+                Email = email,
+                DisplayName = displayName,
+                FirstName = firstName,
+                LastName = lastName,
+                RoleId = roleId,
+            },
+            commandType: CommandType.StoredProcedure,
+            cancellationToken: cancellationToken);
+        User? user = await connection.QueryFirstOrDefaultAsync<User>(cmd);
+        if (user is null)
+        {
+            throw new InvalidOperationException(
+                $"usp_UserProvision returned no row for ExternalUserId '{externalUserId}'. The stored procedure must be present and must return the row it just inserted or found.");
+        }
+        return user;
+    }
 }

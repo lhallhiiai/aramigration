@@ -44,4 +44,26 @@ public interface IUserRepository
     /// <param name="jobTitleId">The job title identifier to filter by.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     Task<IReadOnlyList<User>> GetByJobTitleIdAsync(int jobTitleId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Provisions a user record for the given external identity. If a row already exists for
+    /// <paramref name="externalUserId"/>, returns it unchanged; otherwise creates a new row using
+    /// the supplied claims. The implementation must be idempotent on re-run.
+    /// </summary>
+    /// <param name="externalUserId">The Okta subject identifier (sub claim) for the user.</param>
+    /// <param name="email">The user's email address.</param>
+    /// <param name="displayName">The user's full display name.</param>
+    /// <param name="firstName">The user's first name, if available.</param>
+    /// <param name="lastName">The user's last name, if available.</param>
+    /// <param name="roleId">The role to assign on first creation. Defaults to 1 (Creator/PM).</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>The user row that ends up in the database (existing or newly created).</returns>
+    Task<User> ProvisionAsync(
+        string externalUserId,
+        string email,
+        string displayName,
+        string? firstName,
+        string? lastName,
+        int roleId = 1,
+        CancellationToken cancellationToken = default);
 }

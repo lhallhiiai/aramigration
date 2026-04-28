@@ -1,6 +1,7 @@
 using ARA.Application.Approval;
 using ARA.Application.Ara;
 using ARA.Application.Common;
+using ARA.Application.Email;
 using ARA.Domain.Entities;
 using ARA.Domain.Enums;
 using ARA.Domain.Repositories;
@@ -29,6 +30,8 @@ public sealed class AraServiceTests
     private readonly Mock<IAraRepository> _araRepositoryMock;
     private readonly Mock<IApprovalRecordRepository> _approvalRecordRepositoryMock;
     private readonly Mock<IApprovalRoutingService> _routingServiceMock;
+    private readonly Mock<IUserRepository> _userRepositoryMock;
+    private readonly Mock<IEmailService> _emailServiceMock;
     private readonly Mock<ILogger<AraService>> _loggerMock;
     private readonly AraService _sut;
 
@@ -37,12 +40,16 @@ public sealed class AraServiceTests
         _araRepositoryMock = new Mock<IAraRepository>();
         _approvalRecordRepositoryMock = new Mock<IApprovalRecordRepository>();
         _routingServiceMock = new Mock<IApprovalRoutingService>();
+        _userRepositoryMock = new Mock<IUserRepository>();
+        _emailServiceMock = new Mock<IEmailService>();
         _loggerMock = new Mock<ILogger<AraService>>();
 
         _sut = new AraService(
             _araRepositoryMock.Object,
             _approvalRecordRepositoryMock.Object,
             _routingServiceMock.Object,
+            _userRepositoryMock.Object,
+            _emailServiceMock.Object,
             _loggerMock.Object);
     }
 

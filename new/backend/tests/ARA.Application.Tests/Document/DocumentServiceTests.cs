@@ -89,4 +89,54 @@ public sealed class DocumentServiceTests
         result.IsSuccess.Should().BeTrue();
         _documentRepo.Verify(r => r.DeleteAsync(1, It.IsAny<CancellationToken>()), Times.Once);
     }
+
+    [Fact]
+    public async Task CreateAsync_WithNonPdfFile_ReturnsFailure()
+    {
+        CreateDocumentRequest request = new("report.docx", "/uploads/report.docx");
+
+        Result<int> result = await _sut.CreateAsync(100, 5, request, CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        result.Error.Should().Contain("PDF");
+    }
+
+    [Fact]
+    public async Task CreateAsync_WithOversizedFile_ReturnsFailure()
+    {
+        long sixMegabytes = 6 * 1024 * 1024;
+        CreateDocumentRequest request = new("large.pdf", "/uploads/large.pdf", sixMegabytes);
+
+        Result<int> result = await _sut.CreateAsync(100, 5, request, CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        result.Error.Should().Contain("5 MB");
+    }
+
+    [Fact]
+    public async Task CreateAsync_WithEmptyFileName_ReturnsFailure()
+    {
+        CreateDocumentRequest request = new("", "/uploads/empty");
+
+        Result<int> result = await _sut.CreateAsync(100, 5, request, CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        result.Error.Should().Contain("File name");
+    }
+
+    [Fact]
+    public async Task CreateAsync_WithValidPdf_ReturnsSuccess()
+    {
+        int expectedId = 42;
+        _documentRepo.Setup(r => r.CreateAsync(It.IsAny<AraDocument>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expectedId);
+
+        long fourMegabytes = 4 * 1024 * 1024;
+        CreateDocumentRequest request = new("contract.pdf", "/uploads/contract.pdf", fourMegabytes);
+
+        Result<int> result = await _sut.CreateAsync(100, 5, request, CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Should().Be(expectedId);
+    }
 }

@@ -7,4 +7,5 @@ namespace ARA.Application.Document;
 /// </summary>
 public sealed record CreateDocumentRequest(
     string FileName,
-    string StoragePath);
+    string StoragePath,
+    long? FileSizeBytes = null);

@@ -14,7 +14,7 @@ public sealed class ApprovalRecordService : IApprovalRecordService
     public ApprovalRecordService(IApprovalRecordRepository repository, ILogger<ApprovalRecordService> logger)
     {
         _repository = repository;
-        _logger     = logger;
+        _logger = logger;
     }
 
     /// <inheritdoc/>

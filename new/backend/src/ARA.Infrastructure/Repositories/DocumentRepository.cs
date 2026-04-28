@@ -43,10 +43,10 @@ public sealed class DocumentRepository : IDocumentRepository
             commandText: "usp_AraAttachmentCreate",
             parameters: new
             {
-                AraId            = document.AraId,
+                AraId = document.AraId,
                 UploadedByUserId = document.UploadedByUserId,
-                FileName         = document.FileName,
-                StoragePath      = document.StoragePath,
+                FileName = document.FileName,
+                StoragePath = document.StoragePath,
             },
             commandType: CommandType.StoredProcedure,
             cancellationToken: cancellationToken);

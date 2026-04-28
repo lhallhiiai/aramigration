@@ -30,12 +30,12 @@ public sealed class ApprovalRoutingService : IApprovalRoutingService
         IDelegationRepository delegationRepository,
         ILogger<ApprovalRoutingService> logger)
     {
-        _araRepository            = araRepository;
-        _matrixRepository         = matrixRepository;
+        _araRepository = araRepository;
+        _matrixRepository = matrixRepository;
         _approvalRecordRepository = approvalRecordRepository;
-        _userRepository           = userRepository;
-        _delegationRepository     = delegationRepository;
-        _logger                   = logger;
+        _userRepository = userRepository;
+        _delegationRepository = delegationRepository;
+        _logger = logger;
     }
 
     /// <inheritdoc/>

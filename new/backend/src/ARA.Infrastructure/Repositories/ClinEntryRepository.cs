@@ -43,11 +43,11 @@ public sealed class ClinEntryRepository : IClinEntryRepository
             commandText: "usp_ClinCreate",
             parameters: new
             {
-                AraId       = entry.AraId,
-                ClinNumber  = entry.ClinNumber,
+                AraId = entry.AraId,
+                ClinNumber = entry.ClinNumber,
                 Description = entry.ClinDescription,
                 CostFunding = entry.Cost,
-                FeeFunding  = entry.Fee,
+                FeeFunding = entry.Fee,
             },
             commandType: CommandType.StoredProcedure,
             cancellationToken: cancellationToken);
@@ -62,11 +62,11 @@ public sealed class ClinEntryRepository : IClinEntryRepository
             commandText: "usp_ClinUpdate",
             parameters: new
             {
-                ClinId      = entry.ClinEntryId,
-                ClinNumber  = entry.ClinNumber,
+                ClinId = entry.ClinEntryId,
+                ClinNumber = entry.ClinNumber,
                 Description = entry.ClinDescription,
                 CostFunding = entry.Cost,
-                FeeFunding  = entry.Fee,
+                FeeFunding = entry.Fee,
             },
             commandType: CommandType.StoredProcedure,
             cancellationToken: cancellationToken);

@@ -21,9 +21,9 @@ public sealed class DocumentsController : ControllerBase
         ICurrentUserService currentUserService,
         ILogger<DocumentsController> logger)
     {
-        _documentService    = documentService;
+        _documentService = documentService;
         _currentUserService = currentUserService;
-        _logger             = logger;
+        _logger = logger;
     }
 
     /// <summary>Returns all document records for the given ARA.</summary>

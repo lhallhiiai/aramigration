@@ -20,9 +20,9 @@ public sealed class CurrentUserService : ICurrentUserService
         IHttpContextAccessor httpContextAccessor,
         ILogger<CurrentUserService> logger)
     {
-        _userRepository      = userRepository;
+        _userRepository = userRepository;
         _httpContextAccessor = httpContextAccessor;
-        _logger              = logger;
+        _logger = logger;
     }
 
     /// <inheritdoc/>

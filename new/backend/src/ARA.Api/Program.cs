@@ -33,7 +33,7 @@ else
         .AddJwtBearer(options =>
         {
             options.Authority = builder.Configuration["Okta:Issuer"];
-            options.Audience  = builder.Configuration["Okta:Audience"];
+            options.Audience = builder.Configuration["Okta:Audience"];
         });
 }
 

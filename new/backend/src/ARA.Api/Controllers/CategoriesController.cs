@@ -17,7 +17,7 @@ public sealed class CategoriesController : ControllerBase
     public CategoriesController(ICategoryService categoryService, ILogger<CategoriesController> logger)
     {
         _categoryService = categoryService;
-        _logger          = logger;
+        _logger = logger;
     }
 
     /// <summary>Returns all ARA risk categories.</summary>

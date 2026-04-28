@@ -19,8 +19,8 @@ public sealed class ClinEntryService : IClinEntryService
         ILogger<ClinEntryService> logger)
     {
         _clinRepository = clinRepository;
-        _araRepository  = araRepository;
-        _logger         = logger;
+        _araRepository = araRepository;
+        _logger = logger;
     }
 
     /// <inheritdoc/>
@@ -44,11 +44,11 @@ public sealed class ClinEntryService : IClinEntryService
 
         ClinEntry entry = new()
         {
-            AraId          = araId,
-            ClinNumber     = request.ClinNumber,
+            AraId = araId,
+            ClinNumber = request.ClinNumber,
             ClinDescription = request.ClinDescription,
-            Cost           = request.Cost,
-            Fee            = request.Fee,
+            Cost = request.Cost,
+            Fee = request.Fee,
         };
 
         int clinEntryId = await _clinRepository.CreateAsync(entry, cancellationToken);
@@ -61,11 +61,11 @@ public sealed class ClinEntryService : IClinEntryService
     {
         ClinEntry entry = new()
         {
-            ClinEntryId    = request.ClinEntryId,
-            ClinNumber     = request.ClinNumber,
+            ClinEntryId = request.ClinEntryId,
+            ClinNumber = request.ClinNumber,
             ClinDescription = request.ClinDescription,
-            Cost           = request.Cost,
-            Fee            = request.Fee,
+            Cost = request.Cost,
+            Fee = request.Fee,
         };
 
         await _clinRepository.UpdateAsync(entry, cancellationToken);

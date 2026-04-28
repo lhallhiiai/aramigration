@@ -209,11 +209,11 @@ public sealed class AraRepository : IAraRepository
             commandText: "usp_AraUpdateStatus",
             parameters: new
             {
-                AraId       = araId,
-                StatusId    = (int)newStatus,
-                Revision    = revision,
+                AraId = araId,
+                StatusId = (int)newStatus,
+                Revision = revision,
                 CancelledAt = cancelledAt,
-                NegatedAt   = negatedAt,
+                NegatedAt = negatedAt,
             },
             commandType: CommandType.StoredProcedure,
             cancellationToken: cancellationToken);

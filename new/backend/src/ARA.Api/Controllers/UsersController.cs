@@ -21,9 +21,9 @@ public sealed class UsersController : ControllerBase
         ICurrentUserService currentUserService,
         ILogger<UsersController> logger)
     {
-        _userService        = userService;
+        _userService = userService;
         _currentUserService = currentUserService;
-        _logger             = logger;
+        _logger = logger;
     }
 
     /// <summary>Returns the currently authenticated user, or 404 if not in the database.</summary>

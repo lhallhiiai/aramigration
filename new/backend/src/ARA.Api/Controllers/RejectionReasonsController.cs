@@ -19,7 +19,7 @@ public sealed class RejectionReasonsController : ControllerBase
         ILogger<RejectionReasonsController> logger)
     {
         _rejectionReasonService = rejectionReasonService;
-        _logger                 = logger;
+        _logger = logger;
     }
 
     /// <summary>Returns all active rejection reason codes.</summary>

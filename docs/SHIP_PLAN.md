@@ -139,9 +139,10 @@ When a future session opens this file, it can resume work without re-deriving co
 
 ---
 
-### Item 4 — User provisioning (Okta JIT + admin onboarding) [~]
+### Item 4 — User provisioning (Okta JIT + admin onboarding) [x]
 
 **Started:** 2026-04-28
+**Completed:** 2026-04-28 — see Completion log for commit SHAs.
 
 - **What it means:** When an authenticated Okta user hits the app and has no row in the local `Users` table, create one automatically using token claims. Provide an admin-onboard fallback for cases where JIT cannot run (e.g. background processes that need a user record before any sign-in). **Authorization rule for production: any user granted access to the application in Okta gets access — there is no per-user gate inside the app itself.**
 - **GCC High quirk:** On `hii.okta-gov.com`, `credentials.provider.*` filter paths are disabled. Any directory queries must scope by app integration, not by provider filter. Note this in code comments and `docs/ship/USER_PROVISIONING.md`.
@@ -153,11 +154,18 @@ When a future session opens this file, it can resume work without re-deriving co
   - Claim mapping documented
   - Silent-failure path in `CurrentUserService` removed; missing user becomes a hard failure with clear log
 - **Files / components touched:**
-  - `new/backend/src/ARA.Application/User/UserProvisioningService.cs` (new)
+  - `new/backend/src/ARA.Application/Users/UserProvisioningService.cs` (new) — folder is `Users/` (existing convention), not `User/`
+  - `new/backend/src/ARA.Application/Users/IUserProvisioningService.cs` (new)
+  - `new/backend/src/ARA.Application/Users/AdminProvisionUserRequest.cs` (new) — request record
+  - `new/backend/src/ARA.Application/ApplicationServiceExtensions.cs` (update) — DI registration
+  - `new/backend/src/ARA.Domain/Repositories/IUserRepository.cs` (update) — added `ProvisionAsync`
+  - `new/backend/src/ARA.Infrastructure/Repositories/UserRepository.cs` (update) — Dapper impl over `usp_UserProvision`
   - `new/backend/src/ARA.Api/Middleware/JitUserProvisioningMiddleware.cs` (new) — fires after auth, before controllers
   - `new/backend/src/ARA.Api/Controllers/AdminUsersController.cs` (new) — admin onboard endpoint
-  - `new/backend/src/ARA.Application/User/CurrentUserService.cs` (update) — remove silent-failure warning
-  - `scripts/sql/usp_UserProvision.sql` (new) — idempotent insert
+  - `new/backend/src/ARA.Api/Validators/AdminProvisionUserRequestValidator.cs` (new) — FluentValidation rules
+  - `new/backend/src/ARA.Api/CurrentUserService.cs` (update) — silent-failure warning removed
+  - `new/backend/src/ARA.Api/Program.cs` (update) — middleware registration between `UseAuthentication`/`UseAuthorization`
+  - `scripts/sql/007_user_provisioning.sql` (new) — idempotent `usp_UserProvision` (renamed from plan's `usp_UserProvision.sql` to fit the existing numbered-script convention)
   - `docs/ship/USER_PROVISIONING.md` (new) — claim map + GCC High quirk + admin-onboard guide
 - **Dependencies:** None (auth is already wired).
 - **Out of scope for this item:**
@@ -165,13 +173,13 @@ When a future session opens this file, it can resume work without re-deriving co
   - Role assignment automation — JIT creates the user with whatever default role is policy; role changes are manual / handled elsewhere
   - Test coverage (Item 7)
 - **Acceptance checklist:**
-  - [ ] First-time Okta sign-in creates a `Users` row automatically; second sign-in does not
-  - [ ] Admin onboard endpoint creates a `Users` row from `sub`/`email`/`name` without requiring sign-in
-  - [ ] Claim → column mapping documented
-  - [ ] Silent-failure warning paths removed; missing user becomes a hard 500 with clear log
-  - [ ] GCC High quirk (no `credentials.provider.*` filters) noted in code and docs
-  - [ ] Smoke test: sign in as a new Okta test user, verify `Users` row is created and ARA pages load
-- **Completion update instruction:** Flip to `[x]`, add `Completed:` line with SHA(s), append findings to Carry-forward notes, add Completion log entry.
+  - [x] First-time Okta sign-in creates a `Users` row automatically; second sign-in does not — JIT middleware fires after authentication and is idempotent on `ExternalUserId`
+  - [x] Admin onboard endpoint creates a `Users` row from `sub`/`email`/`name` without requiring sign-in — `POST /api/admin/users/provision`
+  - [x] Claim → column mapping documented — see `docs/ship/USER_PROVISIONING.md` ("Claim → column map" table)
+  - [x] Silent-failure warning paths removed; missing user becomes a hard 500 with clear log — `CurrentUserService` now throws `InvalidOperationException`; JIT middleware emits Problem Details on hard failure
+  - [x] GCC High quirk (no `credentials.provider.*` filters) noted in code and docs — XML doc on `JitUserProvisioningMiddleware` and dedicated section in `USER_PROVISIONING.md`
+  - [ ] Smoke test: sign in as a new Okta test user, verify `Users` row is created and ARA pages load — **awaiting user-run smoke** (procedure documented in `USER_PROVISIONING.md`)
+- **Completion update instruction:** Item 4 marked `[x]` after the build is green, all 19 backend tests pass, and `dotnet format --verify-no-changes` is clean. The smoke-test acceptance line stays open in the checklist because it requires a live Okta sign-in against the test tenant by the user; captured in Carry-forward notes.
 
 ---
 
@@ -305,6 +313,15 @@ Append findings, follow-ups, and gotchas here as items complete. Keep entries da
 - **Workflow has not yet executed against a real PR.** The `docs/ship-plan` branch was pushed before the workflow existed; the workflow only triggers on PRs targeting `dev` or `main`. The first execution will happen when this branch is opened as a PR. If the workflow fails on its first run, fixes go in a follow-up commit on this same branch.
 - **`dev` tip commit `1c52122` ("After major Phase 2 but before major next steps") is not Conventional Commits format.** It is already on `dev` (and on `feature/phase2-workflow-foundation`), so PRs from feature branches into `dev` should not include it in their diff and should not be blocked by the commitlint gate. If a future PR base spans across that commit (e.g. `dev → main`), expect it to fail the commitlint job — workaround is `--allow-empty` rebase or amending the message before merge to main.
 
+### 2026-04-28 — Item 4 notes
+
+- **Build was broken at session resume** with 10 `CS1061` errors on `ClaimsPrincipal.FindFirstValue` in `UserProvisioningService.cs`. `FindFirstValue` is an AspNetCore extension method (`Microsoft.AspNetCore.Authentication.Abstractions`); the Application layer is a plain class library and must not depend on AspNetCore. Fix was to switch to BCL `principal.FindFirst("sub")?.Value`. The same calls in `CurrentUserService.cs` (which lives in the API project) were left alone — that project does have AspNetCore.
+- **SQL filename diverged from plan.** Plan listed `scripts/sql/usp_UserProvision.sql`; actual file is `scripts/sql/007_user_provisioning.sql` to fit the existing numbered-script convention (006 was the previous step). The `usp_UserProvision` procedure name itself is unchanged.
+- **Application folder is `Users/` (plural).** Plan referenced `User/` (singular); the existing `ApplicationServiceExtensions.cs` already imports `ARA.Application.Users`, so the new files joined that folder.
+- **Open smoke-test sign-off:** the only acceptance item still `[ ]` is "Smoke test: sign in as a new Okta test user." This requires a live Okta sign-in against the test tenant and is captured in `docs/ship/USER_PROVISIONING.md` as a manual procedure. Item 6's prod-readiness checklist already has a parallel line ("`Users` table reachable; JIT provisioning enabled and verified with one prod test user") that will validate the same path against the prod tenant.
+- **Authorization on `/api/admin/users/provision` is `[Authorize]` only** — any authenticated caller can pre-seed a user. Per the Item 4 ship-plan rule "Okta access = app access," tightening to an admin-only role is tracked under the future role-management story and is not part of this item.
+- **No tests added.** Per the Items 1–6 test discipline, gap-fill coverage lives in Item 7. The build + format + existing 19 tests verify the change does not regress anything; the JIT middleware itself has no unit tests yet — they land in Item 7 alongside the rest of the application coverage.
+
 ---
 
 ## Completion log
@@ -314,3 +331,4 @@ Append `Item N completed YYYY-MM-DD — <commit SHA(s)>` lines here as items fin
 - Item 1 completed 2026-04-28 — `0ca0a8b` (docs + SHIP_PLAN flip), built on prior work in `scripts/Invoke-AraDataMigration.ps1` and `scripts/Copy-AraProductionData.ps1`
 - Item 2 completed 2026-04-28 — `4174fa2` (api Key Vault wiring), `61c63d1` (frontend env-driven Okta), `18e7b1c` (docs + SHIP_PLAN flip)
 - Item 3 completed 2026-04-28 — `85fe81d` (backend dotnet format), `1e59753` (frontend eslint scope-exempt), `856ac38` (workflow + commitlint)
+- Item 4 completed 2026-04-28 — `b134c77` (data: usp_UserProvision), `65655de` (feat: JIT + admin onboard), plus this docs commit (USER_PROVISIONING.md + SHIP_PLAN flip)

@@ -214,7 +214,9 @@ When a future session opens this file, it can resume work without re-deriving co
 
 ---
 
-### Item 6 — Production readiness for ARA creation [ ]
+### Item 6 — Production readiness for ARA creation [~]
+
+**Started:** 2026-04-28
 
 - **What it means:** Consolidation item. Capture every config / setting / data prerequisite that must be true in production for an ARA to actually be created end-to-end, then verify each one. The output of this item is a dated production go-live checklist embedded below.
 - **Why it blocks ship:** Items 1–5 are individual building blocks. This is the integration step — the moment we stop and verify they all align before flipping production traffic.

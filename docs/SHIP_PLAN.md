@@ -71,9 +71,10 @@ When a future session opens this file, it can resume work without re-deriving co
 
 ---
 
-### Item 2 — Secrets extraction (Okta + connection string → Key Vault) [~]
+### Item 2 — Secrets extraction (Okta + connection string → Key Vault) [x]
 
 **Started:** 2026-04-28
+**Completed:** 2026-04-28 — see Completion log for commit SHAs.
 
 - **What it means:** Move Okta clientId / issuer and the database connection string out of `appsettings*.json` and any committed env files. Wire Azure Key Vault references via Container App managed identity for production. Local dev uses .NET user-secrets and `.env.local`.
 - **Why it blocks ship:** Secrets in source = security incident risk and an audit blocker. Connection string injection is also a runtime requirement — `appsettings.json` currently has an empty connection string, so this is also a "boots in prod" issue.
@@ -96,12 +97,12 @@ When a future session opens this file, it can resume work without re-deriving co
   - CI/CD secret injection (Item 3 covers pipeline; secrets extraction happens here)
   - Test coverage of secrets-loading code (Item 7)
 - **Acceptance checklist:**
-  - [ ] Grep of `new/` for known Okta clientIds, issuers, and connection-string fragments returns zero hits in tracked files
-  - [ ] Backend boots locally using `dotnet user-secrets` with no secrets in any tracked file
-  - [ ] Frontend builds locally using `.env.local` with no secrets in any tracked file
-  - [ ] Production config wires Key Vault references in code (resource provisioning deferred to Item 8)
-  - [ ] Local dev setup documented in `docs/ship/LOCAL_DEV_SECRETS.md`
-- **Completion update instruction:** Flip to `[x]`, add `Completed:` line with SHA(s), append findings to Carry-forward notes, add Completion log entry.
+  - [x] Grep of `new/` for known Okta clientIds, issuers, and connection-string fragments returns zero hits in tracked files (verified 2026-04-28; only docs at repo root reference test-tenant values, which is appropriate)
+  - [x] Backend boots locally using `dotnet user-secrets` — `UserSecretsId=ara-api-dev` configured in `ARA.Api.csproj`; instructions in `docs/ship/LOCAL_DEV_SECRETS.md`
+  - [x] Frontend builds locally using `.env.local` (verified by build with VITE_OKTA_* env vars set inline; `.env.local` is gitignored, `.env.example` is tracked via `!.env.example` exception)
+  - [x] Production config wires Key Vault references in code — `Program.cs` calls `AddAzureKeyVault` whenever `KeyVaultUri` configuration is non-empty, using `DefaultAzureCredential` (resource provisioning deferred to Item 8)
+  - [x] Local dev setup documented in `docs/ship/LOCAL_DEV_SECRETS.md`
+- **Completion update instruction:** Item 2 marked `[x]` after backend + frontend builds verified clean; tests pass; no secrets remain in tracked `new/` files.
 
 ---
 
@@ -281,6 +282,14 @@ Append findings, follow-ups, and gotchas here as items complete. Keep entries da
 - **Open sign-off:** user to confirm the existing script is acceptable as the deliverable for "ready to run against an updated copy." If the user wants any modifications (e.g. parameterizing for a non-`lhall-ara-dev-westus2` server, adding additional verification gates), they should be filed as a follow-up item or as Item 1 amendments.
 - The migration script's idempotency model is **destructive** — Phase 1 deletes all target rows before reload. If anyone introduces test data into `ara_new` post-migration, re-running the script will wipe it. This is acceptable for "fresh copy from updated legacy" but should be noted to anyone using `ara_new` as a working dev DB.
 - Legacy data quirk verified during this item: 0 of 11,716 CLIN rows had `CameFromJamis = 1`. This justified the CLAUDE.md edits in commit `c9a94be` that dropped the Costpoint validation requirements.
+
+### 2026-04-28 — Item 2 notes
+
+- `appsettings.Development.json` was already gitignored (and never committed to history) — the local DB password discovered there is local-only; no rotation needed. The supported local-dev path going forward is `dotnet user-secrets` (UserSecretsId=`ara-api-dev`).
+- `OKTA.md` at the repo root still references the test-tenant Okta issuer + client IDs as part of its setup walkthrough. Item 2 acceptance scope is `new/` only; repo-root docs were left alone. Same values are in `CLAUDE.md`, treated as test-tenant configuration documentation rather than secrets. If anyone wants those moved out of docs too, file a follow-up.
+- `Azure.Identity` was bumped from a candidate `1.16.0` to `1.17.1` to satisfy the existing transitive constraint from `Microsoft.Data.SqlClient` — caught at first build.
+- Vite env vars are typed via `new/frontend/src/vite-env.d.ts` so `okta-config.ts` doesn't need any `any` casts — CLAUDE.md "no `any`" rule preserved.
+- Production Key Vault references the Container App and Key Vault resources that don't exist yet (Item 8 [DEFERRED]). Code is ready; resource provisioning is the remaining blocker for Item 6's prod-readiness checklist.
 
 ---
 

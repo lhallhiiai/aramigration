@@ -1,0 +1,80 @@
+name: PR Validation
+
+on:
+  pull_request:
+    branches: [dev, main]
+  workflow_dispatch:
+
+concurrency:
+  group: pr-validation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  backend:
+    name: Backend (build + format)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: new/backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore ARA.slnx
+
+      - name: Build (Release)
+        run: dotnet build ARA.slnx -c Release --no-restore
+
+      - name: Format check
+        run: dotnet format ARA.slnx --verify-no-changes --no-restore
+
+  frontend:
+    name: Frontend (lint + build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: new/frontend
+    env:
+      # Build-time placeholders so the bundler can substitute import.meta.env.
+      # These are not real credentials — production builds inject the real
+      # values via Docker build args (see new/frontend/Dockerfile).
+      VITE_OKTA_ISSUER: https://example.com/oauth2/default
+      VITE_OKTA_CLIENT_ID: ci-placeholder
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: new/frontend/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+  commitlint:
+    name: Commit messages (Conventional Commits)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run commitlint
+        uses: wagoid/commitlint-github-action@v6

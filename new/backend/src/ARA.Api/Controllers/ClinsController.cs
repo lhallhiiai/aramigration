@@ -51,6 +51,14 @@ public sealed class ClinsController : ControllerBase
         return NoContent();
     }
 
+    /// <summary>Returns CLIN summary totals with a soft warning flag if funding exceeds ARA amount.</summary>
+    [HttpGet("summary")]
+    public async Task<IActionResult> GetSummary(int araId, CancellationToken cancellationToken)
+    {
+        ClinSummaryDto summary = await _clinService.GetSummaryAsync(araId, cancellationToken);
+        return Ok(summary);
+    }
+
     /// <summary>Removes a CLIN entry from the ARA.</summary>
     [HttpDelete("{clinEntryId:int}")]
     public async Task<IActionResult> Delete(int araId, int clinEntryId, CancellationToken cancellationToken)

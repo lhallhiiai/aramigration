@@ -36,7 +36,7 @@ export function ArchivedPage() {
     <div className="space-y-4">
       <h2 className="text-2xl font-bold">Archived ARAs</h2>
       <p className="text-sm text-muted-foreground">
-        Exported and negated ARAs.
+        Approved, exported, and negated ARAs.
       </p>
       <AraTable
         aras={data}
@@ -47,7 +47,8 @@ export function ArchivedPage() {
         actions={
           isContractAdministrator
             ? (ara) =>
-                ara.status === AraStatus.Exported ? (
+                ara.status === AraStatus.Exported ||
+                ara.status === AraStatus.Approved ? (
                   <Button
                     variant="destructive"
                     size="sm"
@@ -70,9 +71,9 @@ export function ArchivedPage() {
             <AlertDialogTitle>Negate ARA?</AlertDialogTitle>
             <AlertDialogDescription>
               This will change the status of ARA{" "}
-              {negateTarget?.reference ?? `#${negateTarget?.araId}`} from
-              Exported to Negated. This action indicates a contract modification
-              has been received.
+              {negateTarget?.reference ?? `#${negateTarget?.araId}`} to
+              Negated. This action indicates a contract modification has been
+              received.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -5,9 +5,12 @@ using Microsoft.Extensions.Logging;
 
 namespace ARA.Application.Document;
 
-/// <summary>Manages ARA document metadata via <see cref="IDocumentRepository"/>.</summary>
+/// <summary>Manages ARA document metadata with PDF-only and 5MB size validation.</summary>
 public sealed class DocumentService : IDocumentService
 {
+    private const int MaxFileSizeMb = 5;
+    private const long MaxFileSizeBytes = MaxFileSizeMb * 1024 * 1024;
+
     private readonly IDocumentRepository _documentRepository;
     private readonly ILogger<DocumentService> _logger;
 
@@ -28,6 +31,15 @@ public sealed class DocumentService : IDocumentService
     /// <inheritdoc/>
     public async Task<Result<int>> CreateAsync(int araId, int uploadedByUserId, CreateDocumentRequest request, CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(request.FileName))
+            return Result<int>.Failure("File name is required.");
+
+        if (!request.FileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+            return Result<int>.Failure("Only PDF files are accepted.");
+
+        if (request.FileSizeBytes.HasValue && request.FileSizeBytes.Value > MaxFileSizeBytes)
+            return Result<int>.Failure($"File size exceeds the {MaxFileSizeMb} MB limit.");
+
         AraDocument document = new()
         {
             AraId = araId,

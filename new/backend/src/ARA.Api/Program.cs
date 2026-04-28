@@ -48,6 +48,7 @@ builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 
 builder.Services.AddControllers();
 builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
+builder.Services.AddHostedService<ARA.Api.BackgroundServices.AraExpirationHostedService>();
 
 builder.Services.AddCors(options =>
 {
@@ -61,6 +62,7 @@ builder.Services.AddCors(options =>
 
 WebApplication app = builder.Build();
 
+app.UseMiddleware<ARA.Api.Middleware.ProblemDetailsMiddleware>();
 app.UseHttpsRedirection();
 app.UseCors("AraFrontend");
 app.UseAuthentication();

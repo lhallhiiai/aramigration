@@ -16,4 +16,10 @@ public interface IClinEntryService
 
     /// <summary>Removes a CLIN entry.</summary>
     Task<Result> DeleteAsync(int clinEntryId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns CLIN summary totals for the given ARA, including a soft warning flag
+    /// if the combined CLIN funding exceeds the ARA amount set by the PM.
+    /// </summary>
+    Task<ClinSummaryDto> GetSummaryAsync(int araId, CancellationToken cancellationToken = default);
 }

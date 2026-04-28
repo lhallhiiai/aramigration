@@ -1,5 +1,7 @@
+using ARA.Application.Email;
 using ARA.Domain.Repositories;
 using ARA.Infrastructure.Database;
+using ARA.Infrastructure.Email;
 using ARA.Infrastructure.Repositories;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -32,6 +34,8 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<IApprovalMatrixRepository, ApprovalMatrixRepository>();
         services.AddScoped<IDelegationRepository, DelegationRepository>();
         services.AddScoped<IRejectionReasonRepository, RejectionReasonRepository>();
+
+        services.AddScoped<IEmailService, LoggingEmailService>();
 
         return services;
     }

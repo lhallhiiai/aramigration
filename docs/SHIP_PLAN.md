@@ -250,7 +250,9 @@ Each line is either **VERIFIED** (in dev, confirmed by inspection or smoke), **R
 
 ---
 
-### Item 7 — Test coverage (deferred until end) [ ]
+### Item 7 — Test coverage (deferred until end) [~]
+
+**Started:** 2026-04-28
 
 - **What it means:** All previously-deferred test work lands here: backend xUnit unit + integration coverage gap-fill, frontend Vitest coverage gap-fill, coverage targets, and the test gate added to the CI pipeline from Item 3.
 - **Discipline reminder:** During Items 1–6, write tests only as smoke checks proving the item itself works, plus regression tests for bugs caught along the way. All other coverage work lands here.

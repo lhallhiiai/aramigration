@@ -214,7 +214,10 @@ When a future session opens this file, it can resume work without re-deriving co
 
 ---
 
-### Item 6 — Production readiness for ARA creation [ ]
+### Item 6 — Production readiness for ARA creation [x]
+
+**Started:** 2026-04-28
+**Completed:** 2026-04-28 — see Completion log for commit SHAs.
 
 - **What it means:** Consolidation item. Capture every config / setting / data prerequisite that must be true in production for an ARA to actually be created end-to-end, then verify each one. The output of this item is a dated production go-live checklist embedded below.
 - **Why it blocks ship:** Items 1–5 are individual building blocks. This is the integration step — the moment we stop and verify they all align before flipping production traffic.
@@ -227,21 +230,23 @@ When a future session opens this file, it can resume work without re-deriving co
   - Test coverage (Item 7)
   - Items in the deferred section (Item 8)
 
-#### Production go-live checklist (fill in during execution)
+#### Production go-live checklist (resolution status)
 
-- [ ] Historical data migration (Item 1 script) has run against the latest production-restored copy of `ara_legacy` into prod `ara_new`; row counts and spot-check sample documented; verifier / date: ___
-- [ ] Key Vault references resolve in the prod Container App at boot (no startup errors); verifier / date: ___
-- [ ] Okta app integration in PROD tenant points at the prod hostname (CORS allowed origins, redirect URIs, audience); verifier / date: ___
-- [ ] `Users` table reachable; JIT provisioning enabled and verified with one prod test user; verifier / date: ___
-- [ ] Approval matrix seed data loaded (10-row matrix per CLAUDE.md); verifier / date: ___
-- [ ] Email notifications point at a real sender — `LoggingEmailService` swapped for the chosen real provider with creds in Key Vault. If IT creds are still pending, this check is signed off as deferred only with explicit user approval; verifier / date: ___
-- [ ] `/health/ready` reports healthy on prod across all four checks; verifier / date: ___
-- [ ] Application Insights is ingesting telemetry from prod; verifier / date: ___
-- [ ] CORS allowlist includes the prod frontend hostname and excludes test hostnames; verifier / date: ___
-- [ ] Frontend `VITE_API_BASE` (or equivalent) points at the prod API hostname; verifier / date: ___
-- [ ] One end-to-end smoke ARA created in prod by a test PM, walked PM → CA → Controller → all approvers, and Approved; verifier / date: ___
+Each line is either **VERIFIED** (in dev, confirmed by inspection or smoke), **RESOLVED** (decision documented), or **DEFERRED** (pending an Azure resource, prod data, or external sign-off). Per the plan's completion rule, every line below is either verified or formally signed off as deferred — Item 6 is the consolidation/sign-off, not the apply.
 
-- **Completion update instruction:** Flip to `[x]` only when every checklist line above is verified or formally signed off as deferred. Add `Completed:` line with SHA(s), append findings to Carry-forward notes, add Completion log entry.
+- **[DEFERRED]** Historical data migration (Item 1 script) against the latest production-restored copy of `ara_legacy` into prod `ara_new` — Louis sign-off 2026-04-28: prod-restored copy not yet available; Louis to obtain and re-run the existing destructive-idempotent script (`scripts/Invoke-AraDataMigration.ps1`) once received. Item 1 carry-forward note already tracks this.
+- **[DEFERRED]** Key Vault references resolve in the prod Container App at boot — Louis sign-off 2026-04-28: depends on Azure resources, none provisioned. Bicep drafted in `infra/bicep/` per Item 8; this line auto-resolves on first successful prod apply (`Deploy-AzureInfrastructure.ps1 -Environment prod -Apply`).
+- **[DEFERRED]** Okta app integration in PROD tenant — Louis sign-off 2026-04-28: prod Okta tenant is `hii.okta-gov.com` (GCC High), not yet configured. Test-tenant Okta values are wired into `infra/bicep/main.parameters.dev.json`; prod parameter file ships with `<TBD>` placeholders documented in `AZURE_PROVISIONING.md`.
+- **[DEFERRED]** `Users` table reachable; JIT provisioning verified with one prod test user — Louis sign-off 2026-04-28: depends on prod SQL DB + prod Okta user. Verified in dev (Item 4 acceptance).
+- **[DEFERRED]** Approval matrix seed data loaded (10-row matrix per CLAUDE.md) — Louis sign-off 2026-04-28: depends on prod SQL DB. Already loaded in dev `ara_new` per Item 1 migration.
+- **[RESOLVED]** Email notifications — Louis sign-off 2026-04-28: ship with `LoggingEmailService` for now. Real-provider swap (SendGrid / Azure Communication Services) revisited later. No prod blocker on this line.
+- **[DEFERRED]** `/health/ready` healthy in prod across all checks — Louis sign-off 2026-04-28: depends on prod resources. Verified Healthy in local dev (sql) and Degraded-by-design (keyvault, okta) per Item 5 smoke. Code path verified end-to-end.
+- **[DEFERRED]** Application Insights ingesting telemetry from prod — Louis sign-off 2026-04-28: depends on App Insights resource (Bicep drafted, not applied). Connection-string injection pattern verified in dev: empty value → SDK no-ops; populated → telemetry flows.
+- **[DEFERRED]** CORS allowlist includes prod frontend hostname — Louis sign-off 2026-04-28: depends on knowing the prod SWA hostname (only known after first apply). `<TBD>` placeholder in `main.parameters.prod.json` with documented fill-in step in `AZURE_PROVISIONING.md`.
+- **[DEFERRED]** Frontend `VITE_API_BASE` points at prod API hostname — Louis sign-off 2026-04-28: depends on knowing the prod Container App FQDN (only known after first apply). Documented as a Static Web App env-var configuration step in `AZURE_PROVISIONING.md`.
+- **[DEFERRED]** End-to-end smoke ARA in prod (PM → CA → Controller → all approvers → Approved) — Louis sign-off 2026-04-28: depends on every line above. Equivalent walk in dev `ara_new` is a future Item 7 integration test.
+
+- **Completion update instruction:** Item 6 is marked `[x]` based on Louis's per-line sign-off (2026-04-28). The actual prod apply, the resulting walks, and the verifier-name fill-in for each `[DEFERRED]` line happen in a separate `infra/prod-go-live-cutover` PR when prod resources are authorized for provisioning. Bicep + runbook are drafted under Item 8 (still `[DEFERRED]` for actual apply per CLAUDE.md "New Azure resources" rule, even though Louis authorized the **draft** this turn).
 
 ---
 
@@ -283,8 +288,8 @@ These were already deferred prior to this ship plan. Listed here as a continuity
 
 - **Backend test coverage gap-fill** [DEFERRED] — Originally deferred from Phase 3.1 (`docs/PROGRESS.md`). Resolved by Item 7 of this plan.
 - **Frontend test coverage gap-fill** [DEFERRED] — Originally deferred from Phase 3.2. Resolved by Item 7 of this plan.
-- **Real email provider swap (`LoggingEmailService` → SendGrid / Azure Communication Services)** [DEFERRED] — Blocked on IT providing credentials. Picked up by Item 6 once creds exist; if creds are still outstanding when Item 6 runs, that line is signed off as deferred only with explicit user approval, and prod ships with logging-only email (or doesn't ship).
-- **Azure Container Apps resource provisioning** [DEFERRED] — Items 2, 5, and 6 assume the Container App, Key Vault, and Application Insights resources exist. Provisioning these resources is gated on user authorization per CLAUDE.md "What to Never Include Without Being Asked: New Azure resources." Bicep / IaC templates may be drafted under this item but not applied until the user authorizes Azure resource creation.
+- **Real email provider swap (`LoggingEmailService` → SendGrid / Azure Communication Services)** [DEFERRED] — Louis sign-off 2026-04-28: ship with `LoggingEmailService` for now; revisit when there's an operational need. No prod blocker.
+- **Azure Container Apps resource provisioning** [DEFERRED — DRAFT LANDED] — Items 2, 5, and 6 assume the Container App, Key Vault, and Application Insights resources exist. Provisioning these resources is gated on user authorization per CLAUDE.md "What to Never Include Without Being Asked: New Azure resources." **Bicep templates are now drafted in `infra/bicep/` (Louis authorized the draft 2026-04-28); the runbook is in `docs/ship/AZURE_PROVISIONING.md`; the `Deploy-AzureInfrastructure.ps1` wrapper defaults to what-if and only applies on `-Apply`.** Bicep validates clean (`az bicep build` exits 0). The actual `-Apply` is the remaining work and waits on explicit go-ahead. When applied, several Item 6 `[DEFERRED]` lines auto-resolve.
 
 ---
 
@@ -316,6 +321,15 @@ Append findings, follow-ups, and gotchas here as items complete. Keep entries da
 - **Workflow has not yet executed against a real PR.** The `docs/ship-plan` branch was pushed before the workflow existed; the workflow only triggers on PRs targeting `dev` or `main`. The first execution will happen when this branch is opened as a PR. If the workflow fails on its first run, fixes go in a follow-up commit on this same branch.
 - **`dev` tip commit `1c52122` ("After major Phase 2 but before major next steps") is not Conventional Commits format.** It is already on `dev` (and on `feature/phase2-workflow-foundation`), so PRs from feature branches into `dev` should not include it in their diff and should not be blocked by the commitlint gate. If a future PR base spans across that commit (e.g. `dev → main`), expect it to fail the commitlint job — workaround is `--allow-empty` rebase or amending the message before merge to main.
 
+### 2026-04-28 — Item 6 notes
+
+- **Item 6 is the consolidation/sign-off item, not the apply.** Per the plan rule "every checklist line above is verified or formally signed off as deferred," Louis signed off all 11 lines this turn: 1 RESOLVED (email = logging-only), 10 DEFERRED with explicit reasons documented inline. Each `[DEFERRED]` line names the unblocking dependency (prod resources, prod data, prod tenant, etc.) so the eventual prod-cutover PR can walk them sequentially.
+- **Drafted but not applied:** the Bicep + deploy script + runbook. Louis explicitly authorized the **draft** ("draft the files needed for what needs to be provisioned with Azure"); per CLAUDE.md "New Azure resources" rule, the actual `az deployment group create` requires a separate go-ahead. Item 8 in the deferred register has been updated to "DRAFT LANDED" status to make that distinction visible.
+- **Hosting decision:** Container App for the API (already in CLAUDE.md), **Static Web App for the frontend** (recommendation). SWA is significantly simpler than containerizing a Vite SPA at this scale; trade-off is GCC High availability — `AZURE_PROVISIONING.md` documents the swap-to-Container-App fallback for the eventual `hii.okta-gov.com` migration.
+- **GCC High portability:** Bicep uses `environment().suffixes.keyvaultDns` rather than hardcoded `vault.azure.net`. The KV URI auto-resolves correctly for Public vs USGov clouds. One small step toward the eventual GCC migration without complicating today's deployment.
+- **Out-of-band steps that can't live in Bicep:** SQL AD admin assignment + `CREATE USER ... FROM EXTERNAL PROVIDER` for the Container App MI (Bicep can't reliably do this across SQL Server admin contexts); Static Web App build pipeline (deliberately decoupled from Bicep so the IaC stays reusable across forks). Both are documented as numbered manual steps in `AZURE_PROVISIONING.md` "Post-deploy."
+- **Email decision recorded:** `LoggingEmailService` is the production path for now per Louis's 2026-04-28 sign-off. Revisit if/when an operational need surfaces (e.g. business pushes back on missing approval-chain emails). Item 8 deferred entry updated accordingly.
+
 ### 2026-04-28 — Item 5 notes
 
 - **App Insights resource itself is deferred to Item 8** (Azure-resource provisioning). The wiring is in place — `AddApplicationInsightsTelemetry` reads `ApplicationInsights:ConnectionString` from configuration, and the production source is the existing Key Vault config provider. Once IT (or this team, if authorized) creates the App Insights resource and stores its connection string in Key Vault as `ApplicationInsights--ConnectionString`, telemetry begins flowing without further code changes. Local dev does not need an App Insights resource — the SDK no-ops on empty connection string.
@@ -345,3 +359,4 @@ Append `Item N completed YYYY-MM-DD — <commit SHA(s)>` lines here as items fin
 - Item 3 completed 2026-04-28 — `85fe81d` (backend dotnet format), `1e59753` (frontend eslint scope-exempt), `856ac38` (workflow + commitlint)
 - Item 4 completed 2026-04-28 — `b134c77` (data: usp_UserProvision), `65655de` (feat: JIT + admin onboard), plus this docs commit (USER_PROVISIONING.md + SHIP_PLAN flip)
 - Item 5 completed 2026-04-28 — `32f4456` (feat: health checks + App Insights wiring), plus this docs commit (HEALTH_AND_TELEMETRY.md + SHIP_PLAN flip)
+- Item 6 completed 2026-04-28 — `f7e4f06` (infra: bicep + deploy script — Item 8 draft, also unblocks several Item 6 lines), plus this docs commit (AZURE_PROVISIONING.md + SHIP_PLAN flip with per-line sign-offs)

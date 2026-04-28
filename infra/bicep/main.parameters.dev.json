@@ -1,0 +1,27 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "namePrefix": {
+      "value": "hii-ara-dev"
+    },
+    "aspNetCoreEnvironment": {
+      "value": "Development"
+    },
+    "oktaIssuer": {
+      "value": "https://hii-test.oktapreview.com/oauth2/default"
+    },
+    "oktaAudience": {
+      "value": "api://default"
+    },
+    "allowedOrigins": {
+      "value": []
+    },
+    "araDatabaseConnectionString": {
+      "value": ""
+    },
+    "keyVaultRotatorPrincipalId": {
+      "value": ""
+    }
+  }
+}

@@ -91,4 +91,12 @@ public interface IAraRepository
         DateTime? cancelledAt = null,
         DateTime? negatedAt = null,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Bulk-expires all active ARAs whose expiration date has passed.
+    /// Returns the count of ARAs that were transitioned to Expired status.
+    /// Called by the hourly <c>AraExpirationHostedService</c>.
+    /// </summary>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    Task<int> ExpireOverdueAsync(CancellationToken cancellationToken = default);
 }

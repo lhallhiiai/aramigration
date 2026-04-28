@@ -219,4 +219,16 @@ public sealed class AraRepository : IAraRepository
             cancellationToken: cancellationToken);
         await connection.ExecuteAsync(cmd);
     }
+
+    /// <inheritdoc/>
+    public async Task<int> ExpireOverdueAsync(CancellationToken cancellationToken = default)
+    {
+        using IDbConnection connection = await _connectionFactory.CreateAsync(cancellationToken);
+        CommandDefinition cmd = new(
+            commandText: "usp_AraExpireOverdue",
+            commandType: CommandType.StoredProcedure,
+            cancellationToken: cancellationToken);
+        int expiredCount = await connection.QuerySingleAsync<int>(cmd);
+        return expiredCount;
+    }
 }

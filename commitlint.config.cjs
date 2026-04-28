@@ -33,5 +33,10 @@ module.exports = {
       ['sentence-case', 'start-case', 'pascal-case', 'upper-case'],
     ],
     'subject-full-stop': [2, 'never', '.'],
+    // CLAUDE.md does not specify a body line-length limit. Disabling the
+    // conventional default (100) avoids penalising single-paragraph bodies
+    // that read fine in `git log` and on GitHub.
+    'body-max-line-length': [0],
+    'footer-max-line-length': [0],
   },
 };

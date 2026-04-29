@@ -54,7 +54,7 @@ builder.Services.AddHealthChecks()
     .AddCheck<OktaMetadataHealthCheck>("okta", tags: ["ready"]);
 
 builder.Services.AddHttpContextAccessor();
-builder.Services.AddInfrastructure();
+builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddApplicationServices();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 

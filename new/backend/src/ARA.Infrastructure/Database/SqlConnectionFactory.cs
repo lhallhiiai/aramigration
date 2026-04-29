@@ -5,10 +5,10 @@ using Microsoft.Extensions.Configuration;
 namespace ARA.Infrastructure.Database;
 
 /// <summary>
-/// Opens Azure SQL connections using the <c>AraDatabase</c> connection string.
-/// In development the connection string uses <c>Authentication=Active Directory Default</c>,
-/// which resolves to the developer's <c>az login</c> session.
-/// In Azure the same setting resolves to the Container App's Managed Identity.
+/// Opens SQL Server connections using the <c>AraDatabase</c> connection string.
+/// The connection string carries SQL Authentication credentials (<c>User ID=...;Password=...</c>);
+/// the on-prem installer writes them into <c>appsettings.Production.json</c>, and local dev
+/// supplies them via <c>dotnet user-secrets</c>.
 /// </summary>
 public sealed class SqlConnectionFactory : IDbConnectionFactory
 {

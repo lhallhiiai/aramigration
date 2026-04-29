@@ -1,0 +1,30 @@
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "AllowedHosts": "*",
+  "AllowedOrigins": [
+    "<allowed-origin>"
+  ],
+  "Okta": {
+    "Issuer": "<okta-issuer-url>",
+    "Audience": "<okta-audience>"
+  },
+  "ConnectionStrings": {
+    "AraDatabase": "<sql-connection-string>"
+  },
+  "ApplicationInsights": {
+    "ConnectionString": "<app-insights-connection-string>"
+  },
+  "Email": {
+    "FromAddress": "<from-address>",
+    "Smtp": {
+      "Host": "<smtp-host>",
+      "Port": 0,
+      "SecureSocketOptions": "Auto"
+    }
+  }
+}

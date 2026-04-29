@@ -11,6 +11,31 @@
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Ship the on-prem config template inside the publish bundle so the
+         on-prem install script (scripts/Install-AraOnPremises.ps1) can read it
+         from the publish root and write appsettings.Production.json next to it. -->
+    <Content Include="appsettings.Production.json.example" CopyToPublishDirectory="Always" />
+
+    <!-- SECURITY: appsettings.Development.json is gitignored but may exist on a
+         developer's machine populated with local secrets (test SQL passwords,
+         dev Okta values, etc.). dotnet publish would otherwise copy it into the
+         publish output, where it would silently ride along to production. Force
+         CopyToPublishDirectory=Never so it is structurally impossible for a
+         developer-machine publish to leak local secrets to the on-prem bundle. -->
+    <Content Update="appsettings.Development.json"
+             CopyToPublishDirectory="Never"
+             ExcludeFromSingleFile="true" />
+  </ItemGroup>
+
+  <Target Name="WarnIfDevSettingsInPublish" AfterTargets="Publish">
+    <!-- Defense-in-depth: if any future change re-introduces the dev-settings
+         file into the publish output, surface it as a build warning so it's
+         caught before the bundle ever reaches a server. -->
+    <Warning Condition="Exists('$(PublishDir)appsettings.Development.json')"
+             Text="appsettings.Development.json was found in the publish output ($(PublishDir)). It must not ship to production. Check that the &lt;Content Update='appsettings.Development.json' CopyToPublishDirectory='Never' /&gt; entry in ARA.Api.csproj is intact." />
+  </Target>
+
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>

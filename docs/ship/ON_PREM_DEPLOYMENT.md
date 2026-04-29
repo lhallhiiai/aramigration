@@ -1,14 +1,97 @@
 # ARA on-prem deployment
 
-> **Branch 5 placeholder.** This file currently carries only the **Item 8a "Server prerequisites"** section. The Item 8c first-deploy runbook (architecture sketch, ordered install walkthrough, smoke list, rollback procedure) lands on a follow-up branch (`docs/on-prem-runbook`) and expands this file.
+End-to-end runbook for installing the ARA app on a single Windows Server box (2019 or 2022) under IIS, per the on-prem pivot decisions in `docs/ship/ON_PREM_PIVOT_PLAN.md`. This is the operator-facing guide; the install script (`scripts/Install-AraOnPremises.ps1`) does the heavy lifting and this doc walks the steps around it.
 
-## Server prerequisites
+The doc covers both **Windows Server 2019** and **Windows Server 2022**. Where behavior differs between the two it is called out inline; otherwise treat them as interchangeable.
 
-Run these once on a fresh Windows Server box (2019 or 2022, per D9 of `docs/ship/ON_PREM_PIVOT_PLAN.md`) before invoking `scripts/Install-AraOnPremises.ps1`. Each step has an explicit verify.
+**Contents:**
 
-All commands below assume an elevated (admin) PowerShell session.
+- [Architecture](#architecture)
+- [1. Server prerequisites](#1-server-prerequisites) — install once per box
+- [2. Pre-install verification](#2-pre-install-verification) — run before every install
+- [3. First-deploy walkthrough](#3-first-deploy-walkthrough)
+- [4. Post-deploy manual steps](#4-post-deploy-manual-steps)
+- [5. Smoke](#5-smoke)
+- [6. Rollback](#6-rollback)
+- [7. Re-deploy / update](#7-re-deploy--update)
 
-### 1. IIS role + features
+All commands assume an elevated (admin) PowerShell session on the target server unless stated otherwise.
+
+---
+
+## Architecture
+
+The on-prem deployment is a **single Windows Server box** (D9) hosting both the backend API and the SPA under one IIS instance, talking to an Azure SQL Managed Instance over TCP 1433 with SQL Authentication (D3). Outbound is tightly scoped per D10 — the server is **not** internet-reachable inbound, and outbound is limited to a small allowlist (Okta, Azure SQL MI, Application Insights, M365 SMTP).
+
+```text
+                       Internal HII network only — no public DNS
+                                          │
+                                          │ HTTPS:443
+                                          ▼
+                ┌────────────────────────────────────────────────┐
+                │  agxmthrisweb01.hii-tsd.com                    │
+                │  Windows Server 2019 or 2022                   │
+                │                                                │
+                │  ┌────────────────────────────────────────┐    │
+                │  │ IIS site "ARA"   bound 443             │    │
+                │  │   cert: ara.hii-tsd.com (prod) or      │    │
+                │  │         aradev.hii-tsd.com (dev/test)  │    │
+                │  │                                        │    │
+                │  │   ┌───────────────────────────────┐    │    │
+                │  │   │ AspNetCoreModuleV2            │    │    │
+                │  │   │ ─► dotnet ARA.Api.dll         │    │    │
+                │  │   │    (in-process Kestrel,       │    │    │
+                │  │   │     net10.0)                  │    │    │
+                │  │   └───────────────────────────────┘    │    │
+                │  │                                        │    │
+                │  │   /                ─► SPA static files │    │
+                │  │   /api/*           ─► backend          │    │
+                │  │   /health/{live|ready}                 │    │
+                │  └────────────────────────────────────────┘    │
+                └────────────────────────────────────────────────┘
+                          │                │              │
+                  443 ▼   │           1433 ▼           587 ▼  (or 25, per relay)
+            ┌─────────────────┐  ┌──────────────────┐  ┌────────────────────┐
+            │  Okta tenant    │  │ Azure SQL MI     │  │  M365 SMTP relay    │
+            │  (test or prod) │  │ ara_new database │  │  (allowlisted IP;   │
+            │                 │  │ SQL Auth login   │  │   no auth)          │
+            └─────────────────┘  └──────────────────┘  └────────────────────┘
+                          │
+                  443 ▼
+            ┌─────────────────────────────┐
+            │  Application Insights       │
+            │  *.in.applicationinsights…  │
+            │  *.livediagnostics.monitor… │
+            └─────────────────────────────┘
+```
+
+**Components on the box:**
+
+- **IIS site `ARA`** (default name; `-IisSiteName` overrides). Single site bound to HTTPS:443 with the internal-CA cert for the environment's hostname. Serves the SPA from `/`, the API from `/api/*`, the health probes from `/health/{live,ready}`.
+- **App pool `ARA`** running the in-process `dotnet` worker via the IIS `AspNetCoreModuleV2` native module (the .NET 10 Hosting Bundle). Default identity is the IIS-virtual `IIS AppPool\ARA`; can be a domain service account if `-AppPoolIdentity` is supplied to the installer.
+- **`appsettings.Production.json`** in the install path. Generated by `Install-AraOnPremises.ps1` from the tracked `appsettings.Production.json.example` template, then locked down with NTFS ACLs (read for the app pool identity + FullControl for Administrators + SYSTEM only). Never tracked in git (D4).
+- **No Docker, no Key Vault, no Container App** — those were retired on the on-prem pivot.
+
+**External dependencies:**
+
+| Endpoint | Direction | Purpose |
+|----------|-----------|---------|
+| Azure SQL MI `:1433` (+ MI redirect range) | outbound | All app data |
+| Okta `hii-test.oktapreview.com:443` | outbound | Auth (dev / test cert hostnames) |
+| Okta `hii.okta-gov.com:443` | outbound | Auth (prod cert hostname, GCC High) |
+| Application Insights ingestion `:443` | outbound | Telemetry — empty conn string disables silently |
+| M365 SMTP relay `:587` (or `:25`) | outbound | Email — empty `Email:Smtp:Host` falls back to `LoggingEmailService` |
+| HTTPS `:443` from internal network | inbound | App traffic |
+
+The full firewall allowlist with exact host:port pairs lives in `docs/ship/TLS_AND_NETWORKING.md` (Item 8d).
+
+---
+
+## 1. Server prerequisites
+
+Run these **once per box** — they don't change between installs of the app, only between server rebuilds. The install script's `Test-Prerequisites` step re-checks the load-bearing ones (IIS, Hosting Bundle) before doing anything destructive, but these install steps need a human first.
+
+### 1.1 IIS role + features
 
 WS 2019 and WS 2022 use the same `Install-WindowsFeature` syntax for the IIS roles the ARA app needs.
 
@@ -43,11 +126,11 @@ Import-Module WebAdministration
 Get-Item IIS:\Sites\Default*  # confirms the IIS provider is loaded
 ```
 
-WS 2019 vs WS 2022: identical so far. If a future divergence appears, the install script's `Test-Prerequisites` step checks for the `WebAdministration` module on both.
+**WS 2019 vs WS 2022:** identical. If a future divergence appears, the install script's `Test-Prerequisites` step checks for the `WebAdministration` module on both.
 
-### 2. ASP.NET Core 10 Hosting Bundle
+### 1.2 ASP.NET Core 10 Hosting Bundle
 
-The ARA backend targets `net10.0`. The Hosting Bundle installs the .NET 10 runtime, the ASP.NET Core runtime, and the IIS `AspNetCoreModuleV2` native module that lets IIS reverse-proxy to the in-process Kestrel host.
+The ARA backend targets `net10.0`. The Hosting Bundle installs the .NET 10 runtime, the ASP.NET Core runtime, and the IIS `AspNetCoreModuleV2` native module that lets IIS host the in-process Kestrel worker.
 
 **Install:** download the latest **ASP.NET Core 10 Hosting Bundle** for Windows from <https://dotnet.microsoft.com/download/dotnet/10.0> and run the installer. Operators who want a silent install can use `dotnet-hosting-10.x.y-win.exe /install /quiet /norestart`.
 
@@ -62,9 +145,9 @@ Test-Path "$env:SystemRoot\System32\inetsrv\aspnetcorev2.dll"
 # Expect True.
 ```
 
-WS 2019 vs WS 2022: identical. Both use the same Hosting Bundle installer.
+**WS 2019 vs WS 2022:** identical. Both use the same Hosting Bundle installer.
 
-### 3. App pool service account
+### 1.3 App pool service account
 
 The install script supports two paths:
 
@@ -91,46 +174,9 @@ Get-WebAppPoolState -Name ARA   # after the install script runs
 Get-LocalGroupMember -Group IIS_IUSRS | Where-Object Name -like "*svcAraApp"
 ```
 
-WS 2019 vs WS 2022: identical.
+**WS 2019 vs WS 2022:** identical.
 
-### 4. SQL connectivity (Azure SQL Managed Instance)
-
-ARA targets Azure SQL Managed Instance with **SQL Authentication** (D3). The application server's outbound rules must allow TCP 1433 to the MI endpoint.
-
-**Verify connectivity from the box:**
-
-```powershell
-Test-NetConnection -ComputerName <sqlmi-host>.database.windows.net -Port 1433
-# Expect TcpTestSucceeded : True. If False, the firewall rule is missing.
-```
-
-**Verify the SQL login can reach `ara_new`:** use SSMS or `sqlcmd`. Outside the scope of this script — handed to the DBA.
-
-WS 2019 vs WS 2022: identical (Azure SQL MI is reached the same way).
-
-### 5. Outbound HTTPS allowlist
-
-The on-prem server (per D10) does not have unrestricted internet access. The runbook's networking chapter (`docs/ship/TLS_AND_NETWORKING.md`, Item 8d, lands on a follow-up branch) lists the exact host:port pairs the firewall must permit. Until that doc lands, the short list is:
-
-- Okta test (`hii-test.oktapreview.com:443`)
-- Okta production (`hii.okta-gov.com:443`)
-- Azure SQL Managed Instance endpoint (`tcp/1433` + the MI redirect range)
-- Application Insights ingestion (`*.in.applicationinsights.azure.com:443` + `*.livediagnostics.monitor.azure.com:443`)
-- M365 SMTP relay if you're enabling SMTP (`smtp.office365.com:587` for commercial M365, or `smtp.office365.us:587` for GCC High)
-
-**Verify each before running the install script** (this is the Item 8e check):
-
-```powershell
-Test-NetConnection -ComputerName hii-test.oktapreview.com         -Port 443
-Test-NetConnection -ComputerName <appinsights-region>.in.applicationinsights.azure.com -Port 443
-Test-NetConnection -ComputerName smtp.office365.com               -Port 587   # if SMTP is enabled
-```
-
-Expect `TcpTestSucceeded : True` for each. Any `False` = the network rule is missing — file a firewall ticket before continuing.
-
-WS 2019 vs WS 2022: identical.
-
-### 6. Internal-CA certificate
+### 1.4 Internal-CA certificate
 
 `Install-AraOnPremises.ps1` does not request the cert — it binds an existing one. Obtain the cert for the environment's hostname (`ara.hii-tsd.com` for prod, `aradev.hii-tsd.com` for dev / test) from the internal CA out-of-band, then import it into `LocalMachine\My`:
 
@@ -155,14 +201,14 @@ If `HasPrivateKey` is `False`, you imported the public-key `.cer` instead of the
 
 The installer's `Resolve-Cert` step validates the thumbprint format (40 hex chars), confirms the cert exists in `LocalMachine\My`, requires a private key, and aborts on an expired cert (warning at <30 days to renewal). All checks run before any IIS change — invalid input fails fast with a descriptive error.
 
-WS 2019 vs WS 2022: identical.
+**WS 2019 vs WS 2022:** identical.
 
-### 7. Certificate renewal
+### 1.5 Certificate renewal
 
 The internal-CA cert lifetime is set by your CA policy. When it nears expiry:
 
 1. Request the renewed cert from the internal CA.
-2. Import the `.pfx` into `LocalMachine\My` (step 6).
+2. Import the `.pfx` into `LocalMachine\My` (step 1.4).
 3. Capture the **new** thumbprint (`Get-ChildItem Cert:\LocalMachine\My | Format-List Subject, NotAfter, Thumbprint`).
 4. Re-run `Install-AraOnPremises.ps1` with the same parameters except `-CertThumbprint <new-thumbprint>`. `Set-IisSite` rebinds 443 to the new thumbprint.
 5. Optionally: once the new binding is verified working, remove the expired cert from `LocalMachine\My` (`Remove-Item Cert:\LocalMachine\My\<old-thumbprint>`).
@@ -171,4 +217,338 @@ A re-run of the installer is the safe path because it explicitly re-binds the SS
 
 If `-CertThumbprint` is omitted on a re-run AND the IIS site already has an HTTPS binding pointing at a still-valid cert, the script reuses the existing binding's thumbprint (no rebind happens). This is convenient for re-runs that only update config values, not the cert.
 
-WS 2019 vs WS 2022: identical.
+**WS 2019 vs WS 2022:** identical.
+
+---
+
+## 2. Pre-install verification
+
+Run these checks **immediately before every install** — they verify the network and SQL paths the app needs at runtime. The install script does not run them itself because firewall changes require lead time and you want to know you have a green light *before* you start the install, not midway through. This is the Item 8e gate.
+
+### 2.1 Outbound network allowlist (Item 8e)
+
+The on-prem server does not have unrestricted internet access (D10). Each outbound endpoint the app uses must be on the firewall allowlist. The full list with rationale lives in `docs/ship/TLS_AND_NETWORKING.md`; the verification commands are:
+
+```powershell
+# Okta — at least one (test or prod) must succeed; both are required if this
+# server eventually serves both environments.
+Test-NetConnection -ComputerName hii-test.oktapreview.com -Port 443
+Test-NetConnection -ComputerName hii.okta-gov.com         -Port 443
+
+# Azure SQL Managed Instance endpoint
+Test-NetConnection -ComputerName <sqlmi-host>.database.windows.net -Port 1433
+
+# Application Insights ingestion (replace <region> with your AI workspace's region,
+# e.g. westus2 -> westus2-2.in.applicationinsights.azure.com)
+Test-NetConnection -ComputerName <region>.in.applicationinsights.azure.com -Port 443
+
+# M365 SMTP relay — only if SMTP is being enabled this install
+Test-NetConnection -ComputerName smtp.office365.com -Port 587   # commercial M365
+Test-NetConnection -ComputerName smtp.office365.us  -Port 587   # GCC High
+```
+
+Each command should report `TcpTestSucceeded : True`. Any `False` = the firewall rule is missing — file a network ticket and **do not proceed with the install** until it lands. A failed App Insights endpoint is silent at runtime (telemetry just doesn't show up); a failed SQL or Okta endpoint takes the app down.
+
+### 2.2 SQL login can read `ara_new`
+
+The `Test-NetConnection` above proves the TCP path. Confirming the SQL login itself can read / write `ara_new` is a separate check that the DBA or operator runs:
+
+```powershell
+# Using sqlcmd (from SQL Server tools):
+sqlcmd -S <sqlmi-host>.database.windows.net -U <sql-user> -P <sql-password> -d ara_new `
+    -Q "SELECT TOP 1 AraId, Reference FROM Ara ORDER BY AraId DESC"
+# Expect a row OR an empty result. Any error = login or permission problem.
+```
+
+If the SQL login lacks `db_datareader` / `db_datawriter` / `EXECUTE` on `ara_new`, fix that before the install — the app boots but every request fails.
+
+### 2.3 Cert is staged
+
+The `-CertThumbprint` you'll pass to the installer needs to point at a present, valid, private-key-holding cert in `LocalMachine\My`. The installer validates this, but it's a fast check to run by hand first:
+
+```powershell
+Get-Item Cert:\LocalMachine\My\<thumbprint> |
+    Select-Object Subject, NotAfter, HasPrivateKey
+# Expect Subject matching ara.hii-tsd.com or aradev.hii-tsd.com,
+# NotAfter in the future, HasPrivateKey True.
+```
+
+If any of those are wrong, see §1.4 (import / capture thumbprint).
+
+---
+
+## 3. First-deploy walkthrough
+
+This is the ordered sequence from "I have a clean server with prereqs in place and a green pre-install verification" to "the app is up at `https://<host>/` and serving requests."
+
+### 3.1 Build the publish bundle
+
+Build on a **clean checkout** — never on a developer machine that has been used for daily work. Why this matters: `dotnet publish` ships every file in the project's content set, and a developer machine may have local-only files (in-flight changes, scratch files, IDE artifacts) that should not ride along to production. The csproj already explicitly excludes `appsettings.Development.json` from publish output (and a build-time warning fires if anything reintroduces it), but other working files are not centrally protected.
+
+The recommended path:
+
+```powershell
+# In a fresh location (CI runner, build VM, or temp clone):
+git clone https://github.com/<org>/aramigration.git
+cd aramigration
+git checkout <release-tag-or-commit>
+
+# Build the publish bundle for the API project (frontend SPA build is a separate step):
+dotnet publish new/backend/src/ARA.Api/ARA.Api.csproj -c Release -o C:\Staging\ARA-Publish
+
+# Optionally zip it for transfer:
+Compress-Archive -Path C:\Staging\ARA-Publish\* -DestinationPath C:\Staging\ARA-Publish.zip
+```
+
+**Verify the bundle:**
+
+```powershell
+ls C:\Staging\ARA-Publish\appsettings*
+# Expect:
+#   appsettings.json
+#   appsettings.Production.json.example
+# DO NOT expect appsettings.Development.json — if you see it, the csproj exclusion
+# was bypassed and the bundle must not ship.
+```
+
+For the **frontend SPA**, build separately with the production env vars baked in:
+
+```powershell
+cd new/frontend
+$env:VITE_OKTA_ISSUER     = "https://hii-test.oktapreview.com/oauth2/default"   # or prod
+$env:VITE_OKTA_CLIENT_ID  = "<okta-spa-client-id>"
+$env:VITE_API_BASE        = "https://ara.hii-tsd.com/api"                       # or aradev
+npm ci
+npm run build
+# Output is in new/frontend/dist/. Copy this into C:\Staging\ARA-Publish\wwwroot\
+# (or wherever the frontend should sit inside the IIS site root) before the transfer.
+```
+
+### 3.2 Transfer the bundle to the server
+
+Out-of-band — over SMB, robocopy across the internal network, or whatever your environment uses. The script accepts either a folder or a `.zip` for `-PublishBundlePath`.
+
+### 3.3 Run the installer with `-WhatIf` first
+
+`-WhatIf` shows every action the script will take **without** executing them. Always do this before the real run, especially on a fresh box.
+
+```powershell
+.\scripts\Install-AraOnPremises.ps1 `
+    -PublishBundlePath C:\Staging\ARA-Publish.zip `
+    -SiteHostname ara.hii-tsd.com `
+    -CertThumbprint <40-char-thumbprint-from-1.4> `
+    -SqlConnectionString "Server=tcp:<sqlmi-host>,1433;Database=ara_new;User ID=<u>;Password=<p>;Encrypt=True;" `
+    -OktaIssuer "https://hii-test.oktapreview.com/oauth2/default" `
+    -OktaAudience "api://default" `
+    -AppInsightsConnectionString "InstrumentationKey=...;IngestionEndpoint=..." `
+    -AllowedOrigin "https://ara.hii-tsd.com" `
+    -SmtpHost "smtp.relay.internal" -SmtpPort 25 -SmtpFromAddress "ara@hii-tsd.com" `
+    -WhatIf
+```
+
+The output should print the resolved cert (Thumbprint, Subject, NotAfter) and list every action — staging the bundle, generating `appsettings.Production.json`, locking ACLs, configuring the app pool, creating the IIS site, binding 443. Anything unexpected = stop and ask before re-running without `-WhatIf`.
+
+If you're not enabling SMTP this install, omit all five `-Smtp*` parameters; the app will fall back to `LoggingEmailService`.
+
+### 3.4 Run the installer for real
+
+Same command, drop `-WhatIf`. The script:
+
+1. Re-validates OS + IIS + Hosting Bundle + cert (each can abort the install).
+2. Stages the publish bundle into `-InstallPath` (default `C:\inetpub\sites\ARA`) via `robocopy /MIR`.
+3. Generates `appsettings.Production.json` from the `.example` template by binding the supplied parameters into the JSON object.
+4. Locks NTFS ACLs on `appsettings.Production.json` to the app pool identity (read) + Administrators / SYSTEM (FullControl) only.
+5. Creates / updates the app pool (`ARA`) and site (`ARA`), binds HTTPS:443 to the cert.
+
+Final output prints the resolved binding and a verify-next hint. Total runtime is usually under 60 seconds for a single-box install.
+
+### 3.5 Apply SQL migrations
+
+The schema migrations are PowerShell + `.sql` files under `scripts/sql/`. Apply every numbered file up to the latest in order against `ara_new`. You can use the existing `scripts/Manage-AraDatabase.ps1` if it's wired for prod, or `sqlcmd` directly:
+
+```powershell
+# Example with sqlcmd:
+$conn = "-S <sqlmi-host>.database.windows.net -U <sql-user> -P <sql-password> -d ara_new"
+foreach ($file in (Get-ChildItem scripts\sql\*.sql | Sort-Object Name)) {
+    Write-Host "Applying $($file.Name)"
+    & sqlcmd $conn.Split() -i $file.FullName
+}
+```
+
+**Verify:** check that the highest-numbered script's stored procedures exist:
+
+```powershell
+sqlcmd -S <sqlmi-host>... -U <sql-user> -P <sql-password> -d ara_new `
+    -Q "SELECT name FROM sys.procedures WHERE name LIKE 'usp_%' ORDER BY name DESC"
+# Expect every usp_* the app calls. Spot-check usp_UserProvision (added in
+# script 007), usp_EmailLogCreate (script 005).
+```
+
+### 3.6 Run the historical-data migration
+
+If this is a fresh prod environment and the legacy ARA data hasn't been brought forward yet, run `scripts/Invoke-AraDataMigration.ps1` against the latest production-restored copy of `ara_legacy`. The script is destructive-idempotent — it clears all target tables in reverse FK order before reloading, so re-runs are safe, but **do not run it after users have started entering data in the new system**.
+
+The script's full invocation, parameters, and verification approach are documented in `docs/ship/HISTORICAL_MIGRATION.md`. Brief recap:
+
+```powershell
+.\scripts\Invoke-AraDataMigration.ps1 `
+    -SourceServer "<source-host>" -SourceDatabase ara_legacy `
+    -TargetServer "<sqlmi-host>"  -TargetDatabase ara_new `
+    -SourceUser <u> -SourcePassword <p> `
+    -TargetUser <u> -TargetPassword <p>
+```
+
+The script prints per-table row counts at the end — verify they match `ara_legacy`.
+
+---
+
+## 4. Post-deploy manual steps
+
+These don't fit in the install script either because they happen out-of-band (vendor / external systems) or because they're one-time-per-environment configuration that doesn't belong in an installer.
+
+### 4.1 Okta app integration
+
+Each environment (dev / test / prod) needs its own Okta app integration in the right tenant — `hii-test.oktapreview.com` for dev / test cert hostnames, `hii.okta-gov.com` for the prod cert hostname. The Okta admin console is the workflow.
+
+For each integration, configure:
+
+- **Sign-in redirect URIs:** include `https://<sitehost>/login/callback` (or whatever the SPA callback path is for that environment)
+- **Sign-out redirect URIs:** `https://<sitehost>/`
+- **Trusted Origins:** `https://<sitehost>` (for both CORS and redirect)
+- **Application access:** grant to the user groups that should have ARA access (per the on-prem rule "Okta access = app access")
+
+Capture the `Issuer` URL and `Audience` — these are what you passed (or will pass) to the installer as `-OktaIssuer` / `-OktaAudience`.
+
+### 4.2 M365 service mailbox + relay allowlist
+
+Only required if you set `-SmtpHost` during install. Two pieces:
+
+1. **Service mailbox** in M365 for `ara@hii-tsd.com` (or whatever envelope-from you used). Either a real user mailbox (with no interactive sign-in) or a shared mailbox depending on org policy.
+2. **SMTP relay allowlist** — the M365 / Exchange admin must add the on-prem server's outbound IP to the relay's allowlist. The ARA service does NOT authenticate (D6) — relay is gated by source IP only.
+
+Once both are in place, the first ARA workflow transition (or a manual smoke send) should produce a real email AND a row in the `EmailLog` table. If only the `EmailLog` row appears and no email arrives, the relay path is misconfigured.
+
+### 4.3 First user sign-in (JIT verification)
+
+JIT user provisioning fires the first time an Okta-authenticated user hits the app. Verify it works by signing in as a known Okta test user and confirming a `Users` row appears:
+
+```powershell
+# After a test user signs in, on the SQL side:
+sqlcmd -S <sqlmi-host>... -U <sql-user> -P <sql-password> -d ara_new `
+    -Q "SELECT TOP 5 UserId, ExternalUserId, Email, DisplayName, CreatedAt FROM [User] ORDER BY UserId DESC"
+# Expect a row with the test user's Okta sub as ExternalUserId.
+```
+
+If no row appears and you got a 500 from the app on first sign-in, check the app logs (or App Insights) — the JIT middleware logs structured errors with the offending claim set.
+
+---
+
+## 5. Smoke
+
+Run after install (and after any re-deploy) to confirm the app is healthy.
+
+### 5.1 Health probes
+
+```powershell
+# Liveness — process is up, no dependency calls:
+iwr https://<sitehost>/health/live  -SkipCertificateCheck
+# Expect HTTP 200, empty body.
+
+# Readiness — sql + okta dependency checks:
+iwr https://<sitehost>/health/ready -SkipCertificateCheck | Select-Object -ExpandProperty Content
+# Expect HTTP 200 with body shape:
+#   {"status":"Healthy","totalDurationMs":...,"results":{
+#     "sql":  {"status":"Healthy",...},
+#     "okta": {"status":"Healthy",...}
+#   }}
+# Status "Degraded" is OK in dev (no Okta tenant configured), but in production
+# every check should be "Healthy". Status "Unhealthy" or HTTP 503 = abort and debug.
+```
+
+### 5.2 App Insights ingestion
+
+If `-AppInsightsConnectionString` was set, the first request after install should produce a trace within 60 seconds. In the App Insights blade in the Azure portal, query:
+
+```kql
+requests
+| where timestamp > ago(5m)
+| order by timestamp desc
+| take 10
+```
+
+If nothing shows up: re-check outbound HTTPS to the ingestion endpoint (§2.1), and confirm the connection string in `appsettings.Production.json` matches the AI resource.
+
+### 5.3 End-to-end ARA walk
+
+The full smoke is a real ARA created and walked through the workflow on the on-prem instance. Brief sequence:
+
+1. Sign in as a Creator-role user → JIT provisions the user (§4.3).
+2. Create a new ARA, fill PM section, sign + submit.
+3. Sign in as a Contract Administrator (CA) user, fill CA section, submit forward.
+4. Sign in as a Controller user, complete CLIN worksheet (Non-Early Start) or skip (Early Start), submit for approval.
+5. For each approver in the matrix, sign in and approve.
+6. Confirm final status is `Approved`.
+7. Confirm `EmailLog` rows for every transition (and real emails landing if SMTP is enabled).
+
+Any failure at any step = capture the request ID from App Insights, the relevant `EmailLog` rows, and any logged exception, then debug.
+
+---
+
+## 6. Rollback
+
+If a deploy goes bad, the rollback path is: stop the app pool, restore the previous publish bundle from backup, restart. The installer keeps NO automatic backup — the operator is responsible for the backup before each install.
+
+### 6.1 Take a backup before installing
+
+Before running the installer for a re-deploy or update, snapshot the current install path:
+
+```powershell
+$timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
+$backupPath = "C:\Backups\ARA\$timestamp"
+New-Item -ItemType Directory -Path $backupPath | Out-Null
+robocopy "C:\inetpub\sites\ARA" $backupPath /MIR /XF "appsettings.Production.json"
+# Note: appsettings.Production.json is excluded so the backup doesn't carry secrets;
+# the file's NTFS ACLs would block reading anyway except for Admins.
+```
+
+If you also want to back up `appsettings.Production.json` itself, do it separately and store it under a path with the same restrictive ACLs. Don't put it in a folder that's open to the operator group.
+
+### 6.2 Roll back
+
+```powershell
+# Stop the app pool (drains in-flight requests):
+Stop-WebAppPool -Name ARA
+
+# Replace the install path with the backup:
+robocopy "C:\Backups\ARA\<timestamp>" "C:\inetpub\sites\ARA" /MIR /XF "appsettings.Production.json"
+
+# Restart:
+Start-WebAppPool -Name ARA
+
+# Verify:
+iwr https://<sitehost>/health/ready -SkipCertificateCheck | Select-Object -ExpandProperty Content
+```
+
+If the rollback target depends on a different `appsettings.Production.json` (e.g. a config change was bundled with the bad release), restore that file separately from its own backup before starting the app pool.
+
+If a SQL migration was applied as part of the failed deploy and it needs to be rolled back, that's a manual schema operation — there are no automated migration-down scripts. Coordinate with the DBA before unwinding any schema change.
+
+---
+
+## 7. Re-deploy / update
+
+Subsequent deploys after the first install:
+
+1. **Backup** the current install (§6.1).
+2. **Build** a new publish bundle on a clean checkout (§3.1).
+3. **Pre-install verification** if firewall or network changed (§2). If nothing changed, skip — the prereqs run only changes when the box itself changes.
+4. **Re-run the installer** with the same parameters as the first install, plus:
+   - `-PublishBundlePath` pointing at the new bundle
+   - `-Force` if the new release expects a different `appsettings.Production.json` shape (the template ships with the publish bundle, so any new config keys are picked up only when the file is regenerated)
+   - `-CertThumbprint` may be omitted if the existing cert is still valid (the script reuses the existing binding's thumbprint)
+5. **Apply any new SQL migrations** (§3.5). If the release notes flag schema changes, run them before re-running the installer if they are blocking, or after if they are additive — the release notes will say.
+6. **Smoke** (§5).
+
+If the smoke fails, **roll back** (§6.2) and capture the failure for triage. Don't try to fix forward in production unless the issue is trivially obvious.
+
+**Cert renewal as an update path:** see §1.5 — same sequence with a fresh `-CertThumbprint`.

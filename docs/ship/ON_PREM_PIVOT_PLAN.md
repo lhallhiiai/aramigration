@@ -18,7 +18,7 @@ Each decision shapes the implementation. The work in the **Sequence of execution
 
 **Why it matters:** Drives whether we keep the Dockerfile, write a `.msi`/installer, or write a Windows service install script. IIS is most "Windows-native"; service is simplest; Docker reuses what we already have but adds a Docker dependency on the server.
 
-**Answer:** _<TBD>_
+**Answer:** IIS + ASP.NET Core Module (in-process Kestrel)
 
 ---
 
@@ -28,7 +28,7 @@ Each decision shapes the implementation. The work in the **Sequence of execution
 
 **Why it matters:** If IIS already exists for the backend, hosting the SPA there too is the lightest option.
 
-**Answer:** _<TBD>_
+**Answer:** IIS will exist there, and we can make a site there for it
 
 ---
 
@@ -38,7 +38,7 @@ Each decision shapes the implementation. The work in the **Sequence of execution
 
 **Why it matters:** Windows Integrated is the on-prem default and avoids storing a password. Requires a domain service account.
 
-**Answer:** _<TBD>_
+**Answer:** SQL Auth (username + password in config)
 
 ---
 
@@ -48,7 +48,7 @@ Each decision shapes the implementation. The work in the **Sequence of execution
 
 **Why it matters:** Determines whether the Key Vault wiring stays, gets stripped, or gets replaced.
 
-**Answer:** _<TBD>_
+**Answer:** Plain `appsettings.Production.json` with NTFS ACLs, I don't know how to use DPAPI encrypted sections but want it to be the most secure without using the keyvault
 
 ---
 
@@ -58,7 +58,7 @@ Each decision shapes the implementation. The work in the **Sequence of execution
 
 **Why it matters:** App Insights costs ~$0 idle and the wiring already exists; pulling it out is a real choice.
 
-**Answer:** _<TBD>_
+**Answer:** Keep Application Insights (works from on-prem if outbound HTTPS is allowed) - verify that https outbound is allowed when installing, as this request may need to be made specifically from the eventual production server.
 
 ---
 
@@ -68,7 +68,7 @@ Each decision shapes the implementation. The work in the **Sequence of execution
 
 **Why it matters:** Currently logging-only per Louis sign-off (2026-04-28); on-prem SMTP is the natural future fit.
 
-**Answer:** _<TBD>_
+**Answer:** M365/Exchange on-prem - the relay will work on dev/production machines, local development on my laptop may cause errors, everything should be logged extensively
 
 ---
 
@@ -78,7 +78,7 @@ Each decision shapes the implementation. The work in the **Sequence of execution
 
 **Why it matters:** Drives whether the app needs to handle TLS itself.
 
-**Answer:** _<TBD>_
+**Answer:** Cert from the internal CA bound to IIS - I do not have the official certificate yet, but the app should not have to handle TLS itself.
 
 ---
 
@@ -88,7 +88,7 @@ Each decision shapes the implementation. The work in the **Sequence of execution
 
 **Why it matters:** Drives the shape of CD; PR validation CI in `.github/workflows/pr-validation.yml` is unaffected either way.
 
-**Answer:** _<TBD>_
+**Answer:** manual MSI install
 
 ---
 
@@ -98,8 +98,7 @@ Each decision shapes the implementation. The work in the **Sequence of execution
 
 **Why it matters:** Drives the install scripts and any clustering/HA story.
 
-**Answer:** _<TBD>_
-
+**Answer:** Application server will be a single Windows Server version - 2019 or 2022, the SQL instance will be a managed instance Azure SQL server that will have SQL Authorization enabled on it.
 ---
 
 ### D10 — Hostname
@@ -108,7 +107,7 @@ Each decision shapes the implementation. The work in the **Sequence of execution
 
 **Why it matters:** Drives CORS allowlist, Okta app integration redirect URIs, frontend `VITE_API_BASE`.
 
-**Answer:** _<TBD>_
+**Answer:** The server name will be agxmthrisweb01.hii-tsd.com, the certificate name will be ara.hii-tsd.com for production and aradev.hii-tsd.com for dev and test, it will not be reachable from the internet. OKTA test and production will be accessible from this server, but the target server will have very limited access to resources on the internet.
 
 ---
 

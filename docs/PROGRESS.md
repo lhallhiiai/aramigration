@@ -2,6 +2,8 @@
 
 Updated after each completed work item.
 
+> **SUPERSEDED — historical record only.** This file logs work completed in April 2026 against the original Azure-flavored execution plan (`docs/EXECUTION_PLAN.md`). The current source of truth is `docs/SHIP_PLAN.md`. The Azure-specific entries below (Phase 3.5 Container Apps Dockerfiles, etc.) describe the state of the codebase at the time the work landed; they were superseded by the on-premises Windows Server pivot on 2026-04-29. See `docs/ship/ON_PREM_PIVOT_PLAN.md` for the direction change and SHIP_PLAN's Items 8a–8e for the on-prem replacement scope.
+
 ---
 
 ## Stabilization Phase — COMPLETE

@@ -2,7 +2,9 @@
 
 **Created:** 2026-04-27
 **Author:** Claude (Opus 4.6) with Louis Hall
-**Status:** APPROVED — 2026-04-27. Executing autonomously.
+**Status:** SUPERSEDED — historical record only. The current source of truth for what's done and what's next is `docs/SHIP_PLAN.md`. The deployment direction described below (Azure Container Apps, Static Web App, Key Vault, Application Insights via KV) was retired on 2026-04-29 by the on-premises Windows Server pivot — see `docs/ship/ON_PREM_PIVOT_PLAN.md` (D1–D10) for the decisions and the SHIP_PLAN's Items 8a–8e for the replacement deployment artifacts.
+
+> Read this file for context on what was decided in April 2026 during the original autonomous-execution phases. Do **not** treat any forward-looking statement here (e.g. "Phase 3.5 — Azure Container Apps Deployment") as current direction — it isn't.
 
 ---
 
@@ -20,17 +22,6 @@
 ## Key Decisions Requiring Your Confirmation
 
 These are choices with significant cost, scope, or architectural implications. I will not proceed until you confirm or override each one.
-
-### Decision 1 — AB# Reference in Commit Messages
-
-You referenced an "AB#[number] Action Board reference rule from CLAUDE.md" but CLAUDE.md does not contain this convention. **Options:**
-
-- **(A)** You provide the AB# format and I use it on every commit
-- **(B)** Skip AB# references — use the Conventional Commits format already in CLAUDE.md
-- **(C)** You add the convention to CLAUDE.md and I follow it
-
-**I need your answer before the Stabilization phase can start.** 
-Answer: Do plan B
 
 ### Decision 2 — Integration Test Database Strategy
 

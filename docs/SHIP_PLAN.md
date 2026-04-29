@@ -6,6 +6,8 @@
 
 When a future session opens this file, it can resume work without re-deriving context: read the file top to bottom, find the next `[ ]` item in execution order, confirm prior items are `[x]`, review carry-forward notes, and start.
 
+> **2026-04-29 — on-prem pivot in flight.** Items 1–5 and 7 carry forward as completed work; **Item 6 has been reset to `[~]` and its internal checklist rebuilt for on-prem readiness**; Items 2, 5, and 6 carry inline amendment notes capturing the direction change. **Item 8 is retired** and replaced by Items **8a–8e** (on-prem provisioning + install + runbook + TLS/networking). The decisions driving the pivot live in `docs/ship/ON_PREM_PIVOT_PLAN.md` (D1–D10).
+
 ---
 
 ## Status Legend
@@ -14,12 +16,13 @@ When a future session opens this file, it can resume work without re-deriving co
 - `[~]` In progress
 - `[x]` Complete
 - `[DEFERRED]` Intentionally postponed
+- `[RETIRED]` Replaced or no longer applicable; kept for traceability with a pointer to its successor
 
 ---
 
 ## Global Rules
 
-- **Commit format:** Conventional Commits per `CLAUDE.md` (`<type>(<scope>): <description>`). The previously-floated `AB#[number]` convention was retired on 2026-04-28 — do not use it.
+- **Commit format:** Conventional Commits per `CLAUDE.md` (`<type>(<scope>): <description>`).
 - **One item at a time, in the order listed.** Do not start Item N+1 until Item N is `[x]`.
 - **Test discipline (Items 1–6):** all coverage work is deferred to Item 7. During Items 1–6, write a test only when the test is the only way to validate that the item itself is functional (e.g. a smoke check that proves Costpoint import landed rows). Bug-fix tests for regressions caught during Items 1–6 are also allowed but kept minimal.
 - **Completing an item:** flip `[ ]` → `[x]`, add a `Completed:` line to the item with the date and commit SHA(s), append any unexpected findings or follow-ups to **Carry-forward notes**, and add a line to the **Completion log** at the bottom.
@@ -75,6 +78,8 @@ When a future session opens this file, it can resume work without re-deriving co
 
 **Started:** 2026-04-28
 **Completed:** 2026-04-28 — see Completion log for commit SHAs.
+
+> **Amendment 2026-04-29 (on-prem pivot, D4):** the production secret store changes from Azure Key Vault to **`appsettings.Production.json` secured by NTFS ACLs**. The KV wiring landed by this item is being stripped on the on-prem branches (see `ON_PREM_PIVOT_PLAN.md` Sequence step 3) and replaced by an `appsettings.Production.json.example` template (tracked) plus an installer-generated `appsettings.Production.json` (gitignored, server-only). Local dev still uses `.NET user-secrets` per `LOCAL_DEV_SECRETS.md`.
 
 - **What it means:** Move Okta clientId / issuer and the database connection string out of `appsettings*.json` and any committed env files. Wire Azure Key Vault references via Container App managed identity for production. Local dev uses .NET user-secrets and `.env.local`.
 - **Why it blocks ship:** Secrets in source = security incident risk and an audit blocker. Connection string injection is also a runtime requirement — `appsettings.json` currently has an empty connection string, so this is also a "boots in prod" issue.
@@ -188,6 +193,8 @@ When a future session opens this file, it can resume work without re-deriving co
 **Started:** 2026-04-28
 **Completed:** 2026-04-28 — see Completion log for commit SHAs.
 
+> **Amendment 2026-04-29 (on-prem pivot, D4 + D5):** Application Insights stays per D5 ("keep App Insights from on-prem if outbound HTTPS is allowed"). The connection-string source changes from Key Vault to `appsettings.Production.json`. The **`KeyVaultHealthCheck` is dropped** as part of the KV-strip work (D4 = no Key Vault); `SqlConnectivityHealthCheck` and `OktaMetadataHealthCheck` are unchanged. Outbound network access from the on-prem server to Azure Monitor ingestion endpoints must be opened — captured in Item 8d (`TLS_AND_NETWORKING.md`).
+
 - **What it means:** Wire Application Insights into the backend with the connection string sourced from Key Vault. Replace the placeholder `/health` endpoint with a real readiness probe: database connectivity, Key Vault reachability, Costpoint-import-data freshness, and Okta metadata reachability. Keep `/health/live` cheap.
 - **Why it blocks ship:** No telemetry = blind in production. The default `/health` returns 200 even when the DB is down; operators have nothing to monitor.
 - **Required outcome:**
@@ -214,39 +221,69 @@ When a future session opens this file, it can resume work without re-deriving co
 
 ---
 
-### Item 6 — Production readiness for ARA creation [x]
+### Item 6 — Production readiness for ARA creation [~]
 
 **Started:** 2026-04-28
-**Completed:** 2026-04-28 — see Completion log for commit SHAs.
+**Reset:** 2026-04-29 — flipped from `[x]` back to `[~]` as part of the on-prem pivot. The original Azure-flavored checklist was retired; the rebuilt on-prem checklist below starts at `[ ]` and is signed off line-by-line as each line is verified on the on-prem target.
 
-- **What it means:** Consolidation item. Capture every config / setting / data prerequisite that must be true in production for an ARA to actually be created end-to-end, then verify each one. The output of this item is a dated production go-live checklist embedded below.
-- **Why it blocks ship:** Items 1–5 are individual building blocks. This is the integration step — the moment we stop and verify they all align before flipping production traffic.
-- **Required outcome:** The checklist below is fully `[VERIFIED]` (with date and verifier) before this item flips to `[x]`. Anything that cannot be verified must be explicitly resolved (deferred with sign-off, or completed) before flip.
+- **What it means:** Consolidation item. Capture every config / setting / data prerequisite that must be true in production **on the on-prem Windows Server target** for an ARA to actually be created end-to-end, then verify each one. The output of this item is a dated production go-live checklist embedded below.
+- **Why it blocks ship:** Items 1–5 are individual building blocks; the new on-prem items 8a–8e wrap them in deployment artifacts. This is the integration step — the moment we stop and verify they all align on the actual production server before flipping users over.
+- **Required outcome:** Every line in the checklist below is either `[VERIFIED]` (date + verifier) or `[DEFERRED]` (with explicit sign-off and the unblocking dependency named) before this item flips back to `[x]`.
 - **Files / components touched:**
-  - `docs/SHIP_PLAN.md` (this file) — checklist below filled in
-  - Possibly `docs/ship/PROD_GO_LIVE.md` if the runbook grows beyond what fits here
-- **Dependencies:** Items 1, 2, 3, 4, 5.
+  - `docs/SHIP_PLAN.md` (this file) — checklist below filled in as sign-offs land
+  - `docs/ship/ON_PREM_DEPLOYMENT.md` (Item 8c) — runbook referenced from this checklist
+- **Dependencies:** Items 1, 2 (with on-prem amendment), 3, 4, 5 (with on-prem amendment), 7 — and Items 8a–8e for the on-prem deployment artifacts.
 - **Out of scope for this item:**
+  - Building or applying the deployment artifacts themselves (Items 8a–8e)
   - Test coverage (Item 7)
-  - Items in the deferred section (Item 8)
 
-#### Production go-live checklist (resolution status)
+#### Production go-live checklist (on-prem, rebuilt 2026-04-29)
 
-Each line is either **VERIFIED** (in dev, confirmed by inspection or smoke), **RESOLVED** (decision documented), or **DEFERRED** (pending an Azure resource, prod data, or external sign-off). Per the plan's completion rule, every line below is either verified or formally signed off as deferred — Item 6 is the consolidation/sign-off, not the apply.
+Free-form rewrite for the on-prem Windows Server target (`agxmthrisweb01.hii-tsd.com`, prod cert `ara.hii-tsd.com`, dev/test cert `aradev.hii-tsd.com`). Every line starts at `[ ]` and only flips to `[x]` after fresh sign-off.
 
-- **[DEFERRED]** Historical data migration (Item 1 script) against the latest production-restored copy of `ara_legacy` into prod `ara_new` — Louis sign-off 2026-04-28: prod-restored copy not yet available; Louis to obtain and re-run the existing destructive-idempotent script (`scripts/Invoke-AraDataMigration.ps1`) once received. Item 1 carry-forward note already tracks this.
-- **[DEFERRED]** Key Vault references resolve in the prod Container App at boot — Louis sign-off 2026-04-28: depends on Azure resources, none provisioned. Bicep drafted in `infra/bicep/` per Item 8; this line auto-resolves on first successful prod apply (`Deploy-AzureInfrastructure.ps1 -Environment prod -Apply`).
-- **[DEFERRED]** Okta app integration in PROD tenant — Louis sign-off 2026-04-28: prod Okta tenant is `hii.okta-gov.com` (GCC High), not yet configured. Test-tenant Okta values are wired into `infra/bicep/main.parameters.dev.json`; prod parameter file ships with `<TBD>` placeholders documented in `AZURE_PROVISIONING.md`.
-- **[DEFERRED]** `Users` table reachable; JIT provisioning verified with one prod test user — Louis sign-off 2026-04-28: depends on prod SQL DB + prod Okta user. Verified in dev (Item 4 acceptance).
-- **[DEFERRED]** Approval matrix seed data loaded (10-row matrix per CLAUDE.md) — Louis sign-off 2026-04-28: depends on prod SQL DB. Already loaded in dev `ara_new` per Item 1 migration.
-- **[RESOLVED]** Email notifications — Louis sign-off 2026-04-28: ship with `LoggingEmailService` for now. Real-provider swap (SendGrid / Azure Communication Services) revisited later. No prod blocker on this line.
-- **[DEFERRED]** `/health/ready` healthy in prod across all checks — Louis sign-off 2026-04-28: depends on prod resources. Verified Healthy in local dev (sql) and Degraded-by-design (keyvault, okta) per Item 5 smoke. Code path verified end-to-end.
-- **[DEFERRED]** Application Insights ingesting telemetry from prod — Louis sign-off 2026-04-28: depends on App Insights resource (Bicep drafted, not applied). Connection-string injection pattern verified in dev: empty value → SDK no-ops; populated → telemetry flows.
-- **[DEFERRED]** CORS allowlist includes prod frontend hostname — Louis sign-off 2026-04-28: depends on knowing the prod SWA hostname (only known after first apply). `<TBD>` placeholder in `main.parameters.prod.json` with documented fill-in step in `AZURE_PROVISIONING.md`.
-- **[DEFERRED]** Frontend `VITE_API_BASE` points at prod API hostname — Louis sign-off 2026-04-28: depends on knowing the prod Container App FQDN (only known after first apply). Documented as a Static Web App env-var configuration step in `AZURE_PROVISIONING.md`.
-- **[DEFERRED]** End-to-end smoke ARA in prod (PM → CA → Controller → all approvers → Approved) — Louis sign-off 2026-04-28: depends on every line above. Equivalent walk in dev `ara_new` is a future Item 7 integration test.
+##### Server foundation (per Item 8a server-prep checklist)
 
-- **Completion update instruction:** Item 6 is marked `[x]` based on Louis's per-line sign-off (2026-04-28). The actual prod apply, the resulting walks, and the verifier-name fill-in for each `[DEFERRED]` line happen in a separate `infra/prod-go-live-cutover` PR when prod resources are authorized for provisioning. Bicep + runbook are drafted under Item 8 (still `[DEFERRED]` for actual apply per CLAUDE.md "New Azure resources" rule, even though Louis authorized the **draft** this turn).
+- [ ] Target Windows Server identified (one of **Windows Server 2019** or **Windows Server 2022**); OS patched current; FQDN matches the cert subject for that environment
+- [ ] IIS role + ASP.NET Core Hosting Bundle installed at the .NET 10 line; `dotnet --info` reports the runtime present
+- [ ] App pool service account created; account is a member of `IIS_IUSRS`; account has logon-as-service rights
+- [ ] Azure SQL Managed Instance reachable from the server (TCP 1433); SQL login created with `db_datareader`/`db_datawriter`/`EXECUTE` on `ara_new`
+- [ ] Outbound HTTPS allowed from the server to: Okta test (`hii-test.oktapreview.com`), Okta prod (`hii.okta-gov.com`), Azure SQL MI endpoint, Application Insights ingestion (`*.in.applicationinsights.azure.com` + `*.livediagnostics.monitor.azure.com`), M365 SMTP (`smtp.office365.com:587` or `smtp.office365.us:587` for GCC High) — see `TLS_AND_NETWORKING.md`
+- [ ] Internal-CA certificate issued for the environment's hostname (`ara.hii-tsd.com` for prod, `aradev.hii-tsd.com` for dev/test); private key on the server in `LocalMachine\My`
+
+##### App install (per Item 8b `Install-AraOnPremises.ps1`)
+
+- [ ] Publish bundle deployed and the IIS site bound to HTTPS:443 with the internal-CA cert; HTTP:80 redirects (or is closed)
+- [ ] `appsettings.Production.json` generated by the installer with real values for: SQL connection string (SQL Auth, D3), Okta `Issuer` + `Audience`, Application Insights connection string, M365 SMTP host/port/credentials/from-address (or left empty to fall back to `LoggingEmailService` per the D6 rule)
+- [ ] NTFS ACLs on `appsettings.Production.json` restricted to the app pool identity + local Administrators only (no Authenticated Users, no Users); verified with `icacls`
+- [ ] Database migrations applied (every script in `scripts/sql/` up to the highest-numbered file); historical-data migration script run against the latest production-restored copy of `ara_legacy` into prod `ara_new` (Item 1 carry-forward)
+
+##### Identity + workflow path
+
+- [ ] Okta app integration created in the target tenant (test-tenant for dev/test cert host; production tenant for prod cert host); redirect URIs include the bound HTTPS hostname; app is granted to the appropriate user groups
+- [ ] First-time Okta sign-in to the app creates a row in `Users` (JIT path verified end-to-end on the on-prem instance)
+- [ ] Approval matrix seed data loaded (10-row matrix per CLAUDE.md) — verify with `SELECT * FROM Threshold ORDER BY SequenceOrder`
+
+##### Health + telemetry
+
+- [ ] `GET https://<host>/health/live` returns `200` with empty body
+- [ ] `GET https://<host>/health/ready` returns `200` and the JSON body shows `sql=Healthy` and `okta=Healthy` (no `keyvault` line — KV check was retired with the on-prem pivot)
+- [ ] First request after install produces a trace in Application Insights within 60 seconds (validates outbound + connection string)
+
+##### Email
+
+- [ ] If SMTP is configured: a test ARA workflow transition produces a real email through M365 to a known mailbox AND a row in `EmailLog`. If SMTP is intentionally unset: `EmailLog` rows still appear and the log line `[EMAIL LOGGED]` is visible — operator has confirmed this is intentional
+- [ ] M365 service-account mailbox (or shared mailbox) for `ara@hii-tsd.com` exists and the SMTP-AUTH credential in the install config can authenticate against it
+
+##### Frontend
+
+- [ ] Frontend bundle built with `VITE_OKTA_*` and `VITE_API_BASE` set to the bound HTTPS hostname; deployed under the same IIS instance (per D2)
+- [ ] CORS allowlist on the API (`AllowedOrigins`) contains the same HTTPS hostname; cross-origin XHR from the SPA to `/api/*` succeeds with a token
+
+##### End-to-end smoke
+
+- [ ] One end-to-end test ARA walked from PM creation → CA submit → Controller submit → every required approver level → Approved on the on-prem instance, with the email trail and `EmailLog` rows verified at each step
+
+- **Completion update instruction:** Item 6 flips back to `[x]` only after every line above is either `[VERIFIED]` (date + name) or has an explicit `[DEFERRED]` sign-off naming the unblocking dependency.
 
 ---
 
@@ -285,14 +322,160 @@ Each line is either **VERIFIED** (in dev, confirmed by inspection or smoke), **R
 
 ---
 
-### Item 8 — Known deferrals [DEFERRED]
+### Item 8 — Azure Container Apps provisioning [RETIRED]
 
-These were already deferred prior to this ship plan. Listed here as a continuity register from `docs/PROGRESS.md` so nothing is lost. Each entry notes its disposition.
+**Retired:** 2026-04-29 — superseded by the on-prem pivot. See `docs/ship/ON_PREM_PIVOT_PLAN.md` for the decisions (D1–D10) and **Items 8a–8e below** for the replacement deployment artifacts. The Bicep templates, `Deploy-AzureInfrastructure.ps1`, and `docs/ship/AZURE_PROVISIONING.md` are deleted on the `refactor/retire-azure-artifacts` branch (pivot Sequence step 2).
+
+The two coverage / email entries previously listed under this item moved out and stand on their own:
 
 - **Backend test coverage gap-fill** [DEFERRED] — Originally deferred from Phase 3.1 (`docs/PROGRESS.md`). Resolved by Item 7 of this plan.
 - **Frontend test coverage gap-fill** [DEFERRED] — Originally deferred from Phase 3.2. Resolved by Item 7 of this plan.
-- **Real email provider swap (`LoggingEmailService` → SendGrid / Azure Communication Services)** [DEFERRED] — Louis sign-off 2026-04-28: ship with `LoggingEmailService` for now; revisit when there's an operational need. No prod blocker.
-- **Azure Container Apps resource provisioning** [DEFERRED — DRAFT LANDED] — Items 2, 5, and 6 assume the Container App, Key Vault, and Application Insights resources exist. Provisioning these resources is gated on user authorization per CLAUDE.md "What to Never Include Without Being Asked: New Azure resources." **Bicep templates are now drafted in `infra/bicep/` (Louis authorized the draft 2026-04-28); the runbook is in `docs/ship/AZURE_PROVISIONING.md`; the `Deploy-AzureInfrastructure.ps1` wrapper defaults to what-if and only applies on `-Apply`.** Bicep validates clean (`az bicep build` exits 0). The actual `-Apply` is the remaining work and waits on explicit go-ahead. When applied, several Item 6 `[DEFERRED]` lines auto-resolve.
+- **Real email provider swap (`LoggingEmailService` → real SMTP)** — **Reactivated 2026-04-29** by D6 of the on-prem pivot. Implemented as **Item 8b.1** below (`M365SmtpEmailService` with fallback to `LoggingEmailService` when SMTP host is unset).
+
+---
+
+### Item 8a — On-prem Windows Server provisioning checklist [ ]
+
+- **What it means:** A drafted (not applied) server-prep checklist that names every prerequisite a fresh Windows Server box needs before `Install-AraOnPremises.ps1` can run successfully. Covers IIS roles + ASP.NET Core Hosting Bundle, .NET 10 runtime, app-pool service account, NTFS layout, SQL access, internal-CA cert handling, and outbound network requirements.
+- **Why it blocks ship:** Without a written prereq list, the first install on a clean box fails partway through and leaves the operator hunting through error logs. This is the document the server admin works from before handing the box over for app install.
+- **Required outcome:**
+  - One section per prereq, numbered, with the exact PowerShell or `dism` / `Install-WindowsFeature` commands to run
+  - Each command tagged with whether it differs between **Windows Server 2019** and **Windows Server 2022** (per D9 — both targets supported)
+  - A "verify" command after each install step so the operator confirms the prereq landed
+  - Lives in `docs/ship/ON_PREM_DEPLOYMENT.md` as the "Server prerequisites" section (the runbook in Item 8c is the umbrella; this is its first chapter)
+- **Files / components touched:**
+  - `docs/ship/ON_PREM_DEPLOYMENT.md` — "Server prerequisites" section
+- **Dependencies:** None.
+- **Out of scope for this item:**
+  - Building the install script itself (Item 8b)
+  - The first-deploy walkthrough (Item 8c)
+- **Acceptance checklist:**
+  - [ ] Section covers IIS role + features; ASP.NET Core Hosting Bundle for .NET 10; app-pool service account creation + IIS_IUSRS / logon-as-service rights; SQL connectivity test from the box; outbound HTTPS endpoints listed (Okta, Azure SQL MI, App Insights, M365 SMTP)
+  - [ ] Every command labeled with WS2019 vs WS2022 if it differs
+  - [ ] Verify-step after each install action
+
+---
+
+### Item 8b — On-prem install script (`Install-AraOnPremises.ps1`) [ ]
+
+- **What it means:** A PowerShell installer the operator runs by hand on the target server (D8 = manual, no MSI). Extracts the publish bundle, generates `appsettings.Production.json` from the tracked `.example` template by prompting for or accepting parameters, sets NTFS ACLs on the config file, and creates / configures the IIS site bound to the cert.
+- **Why it blocks ship:** Without this, every install is a hand-typed config-file edit and an icacls invocation per box. That's where mistakes happen.
+- **Required outcome:**
+  - PowerShell-only per CLAUDE.md
+  - Lives at `scripts/Install-AraOnPremises.ps1`
+  - Accepts named parameters AND prompts interactively for any missing one: `-AppInsightsConnectionString`, `-OktaIssuer`, `-OktaAudience`, `-SqlConnectionString`, `-SmtpHost`, `-SmtpPort`, `-SmtpUsername`, `-SmtpPassword`, `-SmtpFromAddress`, `-SiteHostname`, `-AppPoolIdentity`, `-PublishBundlePath`, `-IisSiteName`
+  - Generates `appsettings.Production.json` from `appsettings.Production.json.example` via placeholder substitution; never overwrites an existing file without `-Force`
+  - Sets NTFS ACLs on the generated `appsettings.Production.json`: read for the app-pool identity + local Administrators only; everyone else removed (no Authenticated Users, no Users, no Everyone)
+  - Creates the IIS site (or updates the existing one) bound to HTTPS:443 with the cert subject the operator selects from the local cert store; sets the app pool identity
+  - Idempotent — re-running with the same parameters produces no errors and no destructive changes; values in `appsettings.Production.json` are updated in place
+  - Targets both **Windows Server 2019** and **Windows Server 2022** (per D9). Where cmdlet behavior differs, branch on `[System.Environment]::OSVersion` or `Get-CimInstance Win32_OperatingSystem`
+- **Files / components touched:**
+  - `scripts/Install-AraOnPremises.ps1` (new)
+  - `new/backend/src/ARA.Api/appsettings.Production.json.example` (new, tracked)
+  - `.gitignore` (add `appsettings.Production.json`)
+- **Dependencies:** Item 8a (the script assumes the prereqs from 8a are already in place); branches `refactor/strip-key-vault-deps` and `feat/m365-smtp-email-service` (the script writes the SMTP config block this implies).
+- **Out of scope for this item:**
+  - Creating the cert (operator obtains it from the internal CA out-of-band — covered in Item 8d)
+  - Database migration execution (operator runs migration scripts separately — covered in Item 8c)
+- **Acceptance checklist:**
+  - [ ] Script exists at `scripts/Install-AraOnPremises.ps1` and runs to completion against a clean WS2022 test box (manual smoke by Louis or named operator)
+  - [ ] `appsettings.Production.json.example` template tracked, with a placeholder for every value the script will substitute
+  - [ ] `appsettings.Production.json` added to `.gitignore`
+  - [ ] NTFS ACLs verified by `icacls <path>` after run: app-pool identity + Administrators only
+  - [ ] Re-run is a no-op (idempotency)
+  - [ ] Script behavior delta between WS2019 and WS2022 documented in the script header comment
+
+---
+
+### Item 8b.1 — `M365SmtpEmailService` (real SMTP path) [ ]
+
+- **What it means:** Replace the deferred-forever email-provider story with a real implementation now that the on-prem pivot named M365 / Exchange on-prem as the target (D6). New `M365SmtpEmailService` lives alongside `LoggingEmailService`; DI picks one based on whether `Email:Smtp:Host` is configured. Unset → fall back to `LoggingEmailService` (preserves the laptop dev path that has no SMTP available, per D6).
+- **Why it blocks ship:** Without a real SMTP path, every workflow notification stops at the database and no human ever sees the email. That's not a viable production behavior.
+- **Required outcome:**
+  - New `ARA.Infrastructure.Email.M365SmtpEmailService` implementing `IEmailService`
+  - Uses `System.Net.Mail.SmtpClient` (the recommended API in .NET 10 for STARTTLS + SMTP-AUTH against M365)
+  - Reads `Email:Smtp:Host`, `Email:Smtp:Port`, `Email:Smtp:Username`, `Email:Smtp:Password`, `Email:Smtp:UseStartTls`, `Email:FromAddress` from configuration
+  - On send: also writes to `EmailLog` via the existing `usp_EmailLogCreate` so the audit trail is preserved regardless of provider
+  - Logs every send (success and failure) with structured fields (event type, ARA ID, recipient list, subject, smtp-host, outcome) — per D6's "everything should be logged extensively"
+  - Failures throw `SmtpException`; the existing `SendEmailSafeAsync` wrapper in `AraService` already swallows + logs so the workflow does not break
+  - DI registration in `InfrastructureServiceExtensions.AddInfrastructure` switches between `M365SmtpEmailService` and `LoggingEmailService` at startup based on the configured `Email:Smtp:Host`
+  - Unit tests for the DI fallback (configured host → SMTP service registered; empty host → logging service registered)
+- **Files / components touched:**
+  - `new/backend/src/ARA.Infrastructure/Email/M365SmtpEmailService.cs` (new)
+  - `new/backend/src/ARA.Infrastructure/InfrastructureServiceExtensions.cs` — conditional registration
+  - `new/backend/src/ARA.Api/appsettings.json` — empty `Email:Smtp` + `Email:FromAddress` block (placeholders only)
+  - `new/backend/tests/ARA.Application.Tests/` — DI selection test
+- **Dependencies:** None for the code; install-script integration depends on Item 8b producing the `Email:Smtp:*` keys in `appsettings.Production.json`.
+- **Out of scope for this item:**
+  - Setting up the M365 service-account mailbox itself (operator task; called out in Item 6 checklist)
+  - Templating changes to `AraEmailBuilder` (existing builder is reused unchanged)
+- **Acceptance checklist:**
+  - [ ] `M365SmtpEmailService` exists, implements `IEmailService`, and writes to `EmailLog` on every send (success or failure)
+  - [ ] DI selection test passes: configured host → SMTP service; empty host → `LoggingEmailService`
+  - [ ] `appsettings.json` carries the empty `Email:Smtp` block so `dotnet user-secrets set` and `appsettings.Production.json` overrides bind cleanly
+  - [ ] Build + existing tests stay green
+
+---
+
+### Item 8c — On-prem first-deploy runbook [ ]
+
+- **What it means:** The operator-facing walkthrough for the first install on a fresh server: from "I have a clean box and a publish bundle" to "the app is up at `https://<host>/` and serving requests." Wraps Items 8a, 8b, 8b.1, 8d into one ordered sequence.
+- **Why it blocks ship:** Without this, the operator has to chain together the prereq doc, the install script's parameter list, the cert binding doc, the SQL migration steps, and the post-deploy smoke list — and figure out the order. The runbook is that order.
+- **Required outcome:**
+  - Lives at `docs/ship/ON_PREM_DEPLOYMENT.md`
+  - Top-of-file architecture sketch (single Windows Server box per D9; IIS hosting both backend + frontend per D1+D2; Azure SQL MI; outbound to Okta + App Insights + M365)
+  - Step-by-step: prereqs (8a) → cert binding (8d) → publish-bundle deploy → run installer (8b) → apply SQL migrations → run historical-data migration (Item 1 script, on prod-restored copy) → smoke (`/health/live`, `/health/ready`, sign-in, walk one ARA)
+  - Rollback procedure: stop the app pool, restore previous publish bundle from backup, restart
+  - Post-deploy manual steps that can't live in the installer (e.g., Okta app integration, M365 mailbox setup, firewall rule confirmation)
+  - Targets both **Windows Server 2019** and **Windows Server 2022**; where steps differ, call out the difference inline
+- **Files / components touched:**
+  - `docs/ship/ON_PREM_DEPLOYMENT.md` (new — Item 8a's content lives in here as a section)
+- **Dependencies:** Items 8a, 8b, 8b.1, 8d.
+- **Out of scope for this item:**
+  - First actual prod deploy (separate, supervised, post-merge of all on-prem branches)
+- **Acceptance checklist:**
+  - [ ] Runbook exists and a fresh reader (no prior context) can install end-to-end by following it
+  - [ ] Architecture sketch present
+  - [ ] Rollback procedure present
+  - [ ] WS2019 vs WS2022 differences called out wherever they differ
+
+---
+
+### Item 8d — TLS + networking guide [ ]
+
+- **What it means:** The narrow doc for IIS cert binding (internal CA, no public reachability per D7+D10) and the outbound-firewall allowlist the server needs (per D5+D6+D10). Separated out from the runbook because the cert request and firewall rules are usually a different team's responsibility.
+- **Why it blocks ship:** D10 says the server has "very limited access to resources on the internet" — every outbound endpoint the app needs has to be on an explicit allowlist. Same for the cert: no public CA, no public DNS, internal CA only. This is the doc the network/security team gets handed.
+- **Required outcome:**
+  - Lives at `docs/ship/TLS_AND_NETWORKING.md`
+  - **TLS section:** how to request the internal-CA cert for the env's hostname (`ara.hii-tsd.com` for prod, `aradev.hii-tsd.com` for dev/test), how to import to `LocalMachine\My`, how to bind in IIS via `New-WebBinding` / IIS Manager, certificate renewal pointer
+  - **Outbound allowlist section:** explicit list of host:port pairs the on-prem server must reach: Okta test (`hii-test.oktapreview.com:443`), Okta production (`hii.okta-gov.com:443`), Azure SQL Managed Instance endpoint (port 1433 + 11000-11999 redirect range), Application Insights ingestion (`*.in.applicationinsights.azure.com:443`, `*.livediagnostics.monitor.azure.com:443`), M365 SMTP (`smtp.office365.com:587` for commercial, `smtp.office365.us:587` for GCC High)
+  - **Inbound section:** HTTPS:443 from the internal network only (no public reachability per D10); HTTP:80 either redirected or closed
+- **Files / components touched:**
+  - `docs/ship/TLS_AND_NETWORKING.md` (new)
+- **Dependencies:** None.
+- **Out of scope for this item:**
+  - Actually requesting the cert (operator task)
+  - Actually filing firewall rules (network-team task)
+- **Acceptance checklist:**
+  - [ ] Doc exists with the three sections above
+  - [ ] Outbound allowlist is explicit (host:port, protocol, why it's needed) so the network team has no ambiguity
+  - [ ] Cert binding commands present for both `New-WebBinding` (PowerShell) and IIS Manager (UI) paths
+
+---
+
+### Item 8e — Outbound HTTPS verified for App Insights [ ]
+
+- **What it means:** Carry-forward verification line from D5 ("verify that https outbound is allowed when installing"). Once a server is racked, confirm before install that the outbound allowlist from Item 8d is actually in place — specifically the App Insights ingestion endpoints, since they're the easiest to forget and the failure mode (no telemetry) is silent.
+- **Why it blocks ship:** Silent App Insights failure = blind in production. Test before install, not after the first incident.
+- **Required outcome:**
+  - One-liner in the runbook (Item 8c) that the operator runs on the box: `Test-NetConnection <ingestion-host> -Port 443` for each App Insights endpoint
+  - Pass/fail captured in the deploy notes for that environment
+- **Files / components touched:**
+  - `docs/ship/ON_PREM_DEPLOYMENT.md` — pre-install verification step
+- **Dependencies:** Item 8d (the allowlist must be defined) and Item 8c (the runbook is where this lives).
+- **Acceptance checklist:**
+  - [ ] Verification step present in the runbook with the exact `Test-NetConnection` commands
+  - [ ] Captured in pre-install checklist so a no-network box fails before install rather than after
 
 ---
 
@@ -351,6 +534,14 @@ Append findings, follow-ups, and gotchas here as items complete. Keep entries da
 - **Open DB-outage smoke:** the only acceptance line still `[ ]` is "kill DB connectivity → `/health/ready` reports unhealthy; restore → healthy." The code path is verified by inspection (any exception from `IDbConnectionFactory.CreateAsync` becomes `HealthCheckResult.Unhealthy(...)` which degrades the overall status to `Unhealthy` → 503). Re-running this against the dev DB requires intentionally disrupting access and is left to the user.
 - **OktaMetadataHealthCheck uses a 5-second `HttpClient` timeout.** Hard cap so a hung Okta endpoint cannot block the readiness probe past the next scheduled scrape.
 
+### 2026-04-29 — On-prem pivot
+
+- **Direction change.** Items 6 + 8 were Azure-flavored (Container Apps, Key Vault, Static Web App, Application Insights via KV-sourced connection string). Direction changed to **on-premises Windows Server hosting** (IIS + ASP.NET Core Hosting Bundle, SQL Auth against Azure SQL MI, App Insights via direct config, internal-CA cert, M365 SMTP). Decisions D1–D10 captured in `docs/ship/ON_PREM_PIVOT_PLAN.md`.
+- **Plan deltas.** Item 2 + Item 5 carry inline amendment notes. Item 6 was reset from `[x]` to `[~]` and its 11-line Azure-flavored checklist replaced with a free-form on-prem readiness checklist (all `[ ]`). Item 8 marked `[RETIRED]`. New items 8a, 8b, 8b.1, 8c, 8d, 8e added as the on-prem replacement scope. Status legend gained `[RETIRED]`.
+- **Action-Board commit-reference convention scrubbed.** A previously-floated commit-reference convention was removed from Global Rules per user direction (it does not apply to this project); the matching "Decision 1" section in `docs/EXECUTION_PLAN.md` was deleted in full.
+- **Email decision flipped.** D6 says M365 / Exchange on-prem with extensive logging. The "ship with `LoggingEmailService` only" sign-off from Item 6 (2026-04-28) is superseded — `LoggingEmailService` is preserved as the **fallback** when no SMTP host is configured (so the laptop dev path still works), but production now goes through the new `M365SmtpEmailService` (Item 8b.1).
+- **What's still in flight on this branch (`docs/on-prem-pivot-plan`):** SHIP_PLAN edits (this commit). Source-code changes, file deletions, and the new install/runbook/TLS docs land on the subsequent branches in the sequence documented in `ON_PREM_PIVOT_PLAN.md`.
+
 ### 2026-04-28 — Item 4 notes
 
 - **Build was broken at session resume** with 10 `CS1061` errors on `ClaimsPrincipal.FindFirstValue` in `UserProvisioningService.cs`. `FindFirstValue` is an AspNetCore extension method (`Microsoft.AspNetCore.Authentication.Abstractions`); the Application layer is a plain class library and must not depend on AspNetCore. Fix was to switch to BCL `principal.FindFirst("sub")?.Value`. The same calls in `CurrentUserService.cs` (which lives in the API project) were left alone — that project does have AspNetCore.
@@ -372,4 +563,6 @@ Append `Item N completed YYYY-MM-DD — <commit SHA(s)>` lines here as items fin
 - Item 4 completed 2026-04-28 — `b134c77` (data: usp_UserProvision), `65655de` (feat: JIT + admin onboard), plus this docs commit (USER_PROVISIONING.md + SHIP_PLAN flip)
 - Item 5 completed 2026-04-28 — `32f4456` (feat: health checks + App Insights wiring), plus this docs commit (HEALTH_AND_TELEMETRY.md + SHIP_PLAN flip)
 - Item 6 completed 2026-04-28 — `f7e4f06` (infra: bicep + deploy script — Item 8 draft, also unblocks several Item 6 lines), plus this docs commit (AZURE_PROVISIONING.md + SHIP_PLAN flip with per-line sign-offs)
+- Item 6 RESET 2026-04-29 — flipped back to `[~]` as part of the on-prem pivot; original Azure-flavored checklist retired and replaced with on-prem readiness checklist (all `[ ]`). Will re-flip to `[x]` after fresh per-line sign-off on the on-prem target.
 - Item 7 completed 2026-04-28 — port + adapt phase2 tests, +4 new test files (UserProvisioning, HealthChecks, LookupServices, AraSectionServices, frontend utils), coverlet + reportgenerator + PowerShell threshold gate, vitest config + coverage thresholds, CI test/coverage gates. SHAs in this branch's commit log.
+- On-prem pivot plan landed 2026-04-29 — branch `docs/on-prem-pivot-plan`: SHIP_PLAN edits (Item 6 reset + on-prem checklist; Item 8 retired; new Items 8a–8e added; Items 2 + 5 amended); commit-reference-convention scrub; superseded banners on `docs/PROGRESS.md` and `docs/EXECUTION_PLAN.md`; old Decision 1 section deleted from EXECUTION_PLAN.md.

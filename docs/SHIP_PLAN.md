@@ -6,7 +6,7 @@
 
 When a future session opens this file, it can resume work without re-deriving context: read the file top to bottom, find the next `[ ]` item in execution order, confirm prior items are `[x]`, review carry-forward notes, and start.
 
-> **2026-04-29 — on-prem pivot in flight.** Items 1–5 and 7 carry forward as completed work; **Item 6 has been reset to `[~]` and its internal checklist rebuilt for on-prem readiness**; Items 2, 5, and 6 carry inline amendment notes capturing the direction change. **Item 8 is retired** and replaced by Items **8a–8e** (on-prem provisioning + install + runbook + TLS/networking). The decisions driving the pivot live in `docs/ship/ON_PREM_PIVOT_PLAN.md` (D1–D10).
+> **2026-04-29 — on-prem pivot complete on `dev`.** Items 1–5 and 7 carry forward as completed work; **Item 6 stays `[~]` until install-time sign-off on the on-prem target**; Items 2, 5, and 6 carry inline amendment notes capturing the direction change. **Item 8 is retired** and replaced by Items **8a–8e — all `[x]` on `dev` except for install-time-deferred lines under Item 8b** (which await operator smoke + idempotency check on a real Windows Server box). The decisions driving the pivot live in `docs/ship/ON_PREM_PIVOT_PLAN.md` (D1–D10). The operator-facing install + verification walkthrough is `docs/ship/INSTALL_AND_VERIFY_CHECKLIST.md`.
 
 ---
 
@@ -334,7 +334,10 @@ The two coverage / email entries previously listed under this item moved out and
 
 ---
 
-### Item 8a — On-prem Windows Server provisioning checklist [ ]
+### Item 8a — On-prem Windows Server provisioning checklist [x]
+
+**Started:** 2026-04-29
+**Completed:** 2026-04-29 — see Completion log for commit SHAs.
 
 - **What it means:** A drafted (not applied) server-prep checklist that names every prerequisite a fresh Windows Server box needs before `Install-AraOnPremises.ps1` can run successfully. Covers IIS roles + ASP.NET Core Hosting Bundle, .NET 10 runtime, app-pool service account, NTFS layout, SQL access, internal-CA cert handling, and outbound network requirements.
 - **Why it blocks ship:** Without a written prereq list, the first install on a clean box fails partway through and leaves the operator hunting through error logs. This is the document the server admin works from before handing the box over for app install.
@@ -350,13 +353,17 @@ The two coverage / email entries previously listed under this item moved out and
   - Building the install script itself (Item 8b)
   - The first-deploy walkthrough (Item 8c)
 - **Acceptance checklist:**
-  - [ ] Section covers IIS role + features; ASP.NET Core Hosting Bundle for .NET 10; app-pool service account creation + IIS_IUSRS / logon-as-service rights; SQL connectivity test from the box; outbound HTTPS endpoints listed (Okta, Azure SQL MI, App Insights, M365 SMTP)
-  - [ ] Every command labeled with WS2019 vs WS2022 if it differs
-  - [ ] Verify-step after each install action
+  - [x] Section covers IIS role + features; ASP.NET Core Hosting Bundle for .NET 10; app-pool service account creation + IIS_IUSRS / logon-as-service rights; SQL connectivity test from the box; outbound HTTPS endpoints listed (Okta, Azure SQL MI, App Insights, M365 SMTP) — `docs/ship/ON_PREM_DEPLOYMENT.md` §1 (Server prerequisites) and §2 (Pre-install verification)
+  - [x] Every command labeled with WS2019 vs WS2022 if it differs — every sub-section ends with a `WS 2019 vs WS 2022:` line
+  - [x] Verify-step after each install action — every install step in §1 is followed by a "Verify:" block
+- **Completion update instruction:** Item 8a marked `[x]` after the runbook expansion (branch 6) merged on `dev`. Server prerequisites content lives at `docs/ship/ON_PREM_DEPLOYMENT.md` §1; nothing pending.
 
 ---
 
-### Item 8b — On-prem install script (`Install-AraOnPremises.ps1`) [ ]
+### Item 8b — On-prem install script (`Install-AraOnPremises.ps1`) [x]
+
+**Started:** 2026-04-29
+**Completed:** 2026-04-29 — see Completion log for commit SHAs.
 
 - **What it means:** A PowerShell installer the operator runs by hand on the target server (D8 = manual, no MSI). Extracts the publish bundle, generates `appsettings.Production.json` from the tracked `.example` template by prompting for or accepting parameters, sets NTFS ACLs on the config file, and creates / configures the IIS site bound to the cert.
 - **Why it blocks ship:** Without this, every install is a hand-typed config-file edit and an icacls invocation per box. That's where mistakes happen.
@@ -378,16 +385,20 @@ The two coverage / email entries previously listed under this item moved out and
   - Creating the cert (operator obtains it from the internal CA out-of-band — covered in Item 8d)
   - Database migration execution (operator runs migration scripts separately — covered in Item 8c)
 - **Acceptance checklist:**
-  - [ ] Script exists at `scripts/Install-AraOnPremises.ps1` and runs to completion against a clean WS2022 test box (manual smoke by Louis or named operator)
-  - [ ] `appsettings.Production.json.example` template tracked, with a placeholder for every value the script will substitute
-  - [ ] `appsettings.Production.json` added to `.gitignore`
-  - [ ] NTFS ACLs verified by `icacls <path>` after run: app-pool identity + Administrators only
-  - [ ] Re-run is a no-op (idempotency)
-  - [ ] Script behavior delta between WS2019 and WS2022 documented in the script header comment
+  - [PARTIAL] Script exists at `scripts/Install-AraOnPremises.ps1` and runs to completion against a clean WS2022 test box (manual smoke by Louis or named operator) — script EXISTS and parses clean (1681 PS tokens, zero parse errors); fail-fast validation paths (cert thumbprint format, presence, private key, expiry; SMTP host/port/from coherence) tested in isolation. Real-box smoke remains operator-deferred per `INSTALL_AND_VERIFY_CHECKLIST.md` §5.3
+  - [x] `appsettings.Production.json.example` template tracked, with a placeholder for every value the script will substitute — `new/backend/src/ARA.Api/appsettings.Production.json.example`
+  - [x] `appsettings.Production.json` added to `.gitignore` — with `!appsettings.Production.json.example` exception so the template stays tracked
+  - [ ] NTFS ACLs verified by `icacls <path>` after run: app-pool identity + Administrators only — **operator install-time verification** (`INSTALL_AND_VERIFY_CHECKLIST.md` §5.5)
+  - [ ] Re-run is a no-op (idempotency) — **operator install-time verification** (separate operator pass on a real box)
+  - [x] Script behavior delta between WS2019 and WS2022 documented in the script header comment — `.NOTES` block: "WS 2019 vs WS 2022 differences encountered today: ..."
+- **Completion update instruction:** Item 8b marked `[x]` because the script + template + gitignore + WS-version notes are merged on `dev` (the deliverable side). The 3 remaining `[ ]` lines are intentionally install-time-deferred — they require executing the script on a real Windows Server box, which is per Louis's "install-time sign-offs are on me" directive. Same pattern as Item 4 (smoke line stayed `[ ]` while item flipped to `[x]`).
 
 ---
 
-### Item 8b.1 — `M365SmtpEmailService` (real SMTP path) [ ]
+### Item 8b.1 — `M365SmtpEmailService` (real SMTP path) [x]
+
+**Started:** 2026-04-29
+**Completed:** 2026-04-29 — see Completion log for commit SHAs.
 
 - **What it means:** Replace the deferred-forever email-provider story with a real implementation now that the on-prem pivot named M365 / Exchange on-prem as the target (D6). New `M365SmtpEmailService` lives alongside `LoggingEmailService`; DI picks one based on whether `Email:Smtp:Host` is configured. Unset → fall back to `LoggingEmailService` (preserves the laptop dev path that has no SMTP available, per D6).
 - **Why it blocks ship:** Without a real SMTP path, every workflow notification stops at the database and no human ever sees the email. That's not a viable production behavior.
@@ -410,14 +421,18 @@ The two coverage / email entries previously listed under this item moved out and
   - Setting up the M365 service-account mailbox itself (operator task; called out in Item 6 checklist)
   - Templating changes to `AraEmailBuilder` (existing builder is reused unchanged)
 - **Acceptance checklist:**
-  - [ ] `M365SmtpEmailService` exists, implements `IEmailService`, and writes to `EmailLog` on every send (success or failure)
-  - [ ] DI selection test passes: configured host → SMTP service; empty host → `LoggingEmailService`
-  - [ ] `appsettings.json` carries the empty `Email:Smtp` block so `dotnet user-secrets set` and `appsettings.Production.json` overrides bind cleanly
-  - [ ] Build + existing tests stay green
+  - [x] `M365SmtpEmailService` exists, implements `IEmailService`, and writes to `EmailLog` on every send (success or failure) — `new/backend/src/ARA.Infrastructure/Email/M365SmtpEmailService.cs`. EmailLog write happens **before** the SMTP attempt so the audit trail survives SMTP failures
+  - [x] DI selection test passes: configured host → SMTP service; empty host → `LoggingEmailService` — `InfrastructureEmailRegistrationTests` (7 tests) + `SecureSocketOptionsParsingTests` (12 theories), all green
+  - [x] `appsettings.json` carries the empty `Email:Smtp` block so `dotnet user-secrets set` and `appsettings.Production.json` overrides bind cleanly — `new/backend/src/ARA.Api/appsettings.json`
+  - [x] Build + existing tests stay green — 148/148 pass on `dev` post-merge (114 application + 34 infrastructure; +19 from this branch)
+- **Completion update instruction:** Item 8b.1 marked `[x]` after merge to `dev`. Spec was implemented with one substitution from the original plan: MailKit (4.16.0, NU1902-clean) was used instead of `System.Net.Mail.SmtpClient` because the latter is officially "not recommended for new development" per Microsoft. Per Louis's branch-4 directive, `M365SmtpEmailService` skips `AuthenticateAsync` entirely — the on-prem M365 relay accepts mail by source-IP allowlist, not auth.
 
 ---
 
-### Item 8c — On-prem first-deploy runbook [ ]
+### Item 8c — On-prem first-deploy runbook [x]
+
+**Started:** 2026-04-29
+**Completed:** 2026-04-29 — see Completion log for commit SHAs.
 
 - **What it means:** The operator-facing walkthrough for the first install on a fresh server: from "I have a clean box and a publish bundle" to "the app is up at `https://<host>/` and serving requests." Wraps Items 8a, 8b, 8b.1, 8d into one ordered sequence.
 - **Why it blocks ship:** Without this, the operator has to chain together the prereq doc, the install script's parameter list, the cert binding doc, the SQL migration steps, and the post-deploy smoke list — and figure out the order. The runbook is that order.
@@ -434,14 +449,18 @@ The two coverage / email entries previously listed under this item moved out and
 - **Out of scope for this item:**
   - First actual prod deploy (separate, supervised, post-merge of all on-prem branches)
 - **Acceptance checklist:**
-  - [ ] Runbook exists and a fresh reader (no prior context) can install end-to-end by following it
-  - [ ] Architecture sketch present
-  - [ ] Rollback procedure present
-  - [ ] WS2019 vs WS2022 differences called out wherever they differ
+  - [x] Runbook exists and a fresh reader (no prior context) can install end-to-end by following it — `docs/ship/ON_PREM_DEPLOYMENT.md` (7 chapters, 86 lines of content per chapter avg). Reinforced by the operator-side `INSTALL_AND_VERIFY_CHECKLIST.md` (85 actionable checkboxes) which cross-references back to it
+  - [x] Architecture sketch present — ASCII topology diagram + components table at the top of the runbook
+  - [x] Rollback procedure present — runbook §6 (`ON_PREM_DEPLOYMENT.md` §6: backup-first, app-pool drain + restore, schema-rollback note)
+  - [x] WS2019 vs WS2022 differences called out wherever they differ — every chapter ends with a `WS 2019 vs WS 2022:` line. Today every step is identical between the two; the placeholder is in place for any future divergence
+- **Completion update instruction:** Item 8c marked `[x]` after the runbook expansion (branch 6) merged on `dev`. The runbook absorbed Items 8a's prereqs as Chapter 1 (per the original plan), folded Item 8e's Test-NetConnection gate in as Chapter 2 (more useful as the chapter that runs immediately before the install than as a standalone deliverable), and references `TLS_AND_NETWORKING.md` from Chapter 2 for the firewall details.
 
 ---
 
-### Item 8d — TLS + networking guide [ ]
+### Item 8d — TLS + networking guide [x]
+
+**Started:** 2026-04-29
+**Completed:** 2026-04-29 — see Completion log for commit SHAs.
 
 - **What it means:** The narrow doc for IIS cert binding (internal CA, no public reachability per D7+D10) and the outbound-firewall allowlist the server needs (per D5+D6+D10). Separated out from the runbook because the cert request and firewall rules are usually a different team's responsibility.
 - **Why it blocks ship:** D10 says the server has "very limited access to resources on the internet" — every outbound endpoint the app needs has to be on an explicit allowlist. Same for the cert: no public CA, no public DNS, internal CA only. This is the doc the network/security team gets handed.
@@ -457,13 +476,17 @@ The two coverage / email entries previously listed under this item moved out and
   - Actually requesting the cert (operator task)
   - Actually filing firewall rules (network-team task)
 - **Acceptance checklist:**
-  - [ ] Doc exists with the three sections above
-  - [ ] Outbound allowlist is explicit (host:port, protocol, why it's needed) so the network team has no ambiguity
-  - [ ] Cert binding commands present for both `New-WebBinding` (PowerShell) and IIS Manager (UI) paths
+  - [x] Doc exists with the three sections above — `docs/ship/TLS_AND_NETWORKING.md` (Summary, TLS / cert binding, Outbound allowlist, Inbound rules)
+  - [x] Outbound allowlist is explicit (host:port, protocol, why it's needed) so the network team has no ambiguity — §3 has a Destination · Port/Protocol · Mandatory? · Used for table covering Okta test+prod, Azure SQL MI 1433 + 11000-11999 redirect range (with the load-bearing callout), App Insights ingestion + Live Metrics, M365 SMTP commercial + GCC High
+  - [x] Cert binding commands present for both `New-WebBinding` (PowerShell) and IIS Manager (UI) paths — §2.2 (PowerShell) and §2.3 (IIS Manager UI walk)
+- **Completion update instruction:** Item 8d marked `[x]` after branch 7 merged on `dev`. SNI flag (`-SslFlags 1`) enabled in the binding even though ARA only needs one hostname per server today — costs nothing now, avoids a future fight.
 
 ---
 
-### Item 8e — Outbound HTTPS verified for App Insights [ ]
+### Item 8e — Outbound HTTPS verified for App Insights [x]
+
+**Started:** 2026-04-29
+**Completed:** 2026-04-29 — see Completion log for commit SHAs.
 
 - **What it means:** Carry-forward verification line from D5 ("verify that https outbound is allowed when installing"). Once a server is racked, confirm before install that the outbound allowlist from Item 8d is actually in place — specifically the App Insights ingestion endpoints, since they're the easiest to forget and the failure mode (no telemetry) is silent.
 - **Why it blocks ship:** Silent App Insights failure = blind in production. Test before install, not after the first incident.
@@ -474,8 +497,9 @@ The two coverage / email entries previously listed under this item moved out and
   - `docs/ship/ON_PREM_DEPLOYMENT.md` — pre-install verification step
 - **Dependencies:** Item 8d (the allowlist must be defined) and Item 8c (the runbook is where this lives).
 - **Acceptance checklist:**
-  - [ ] Verification step present in the runbook with the exact `Test-NetConnection` commands
-  - [ ] Captured in pre-install checklist so a no-network box fails before install rather than after
+  - [x] Verification step present in the runbook with the exact `Test-NetConnection` commands — `docs/ship/ON_PREM_DEPLOYMENT.md` §2.1 (in-runbook Item 8e gate)
+  - [x] Captured in pre-install checklist so a no-network box fails before install rather than after — `docs/ship/INSTALL_AND_VERIFY_CHECKLIST.md` §2.7 marks the App Insights `Test-NetConnection` as a hard gate ("STOP" if False) before the operator hits §5
+- **Completion update instruction:** Item 8e marked `[x]` after both the runbook (branch 6) and the install/verify checklist (`docs/install-verify-checklist`) merged on `dev`. The verification appears in two places: as Chapter 2 of the runbook (background reading) and as a §2.7 hard-gate checkbox in the install checklist (the operator-facing version that fires during install).
 
 ---
 
@@ -542,6 +566,13 @@ Append findings, follow-ups, and gotchas here as items complete. Keep entries da
 - **Email decision flipped.** D6 says M365 / Exchange on-prem with extensive logging. The "ship with `LoggingEmailService` only" sign-off from Item 6 (2026-04-28) is superseded — `LoggingEmailService` is preserved as the **fallback** when no SMTP host is configured (so the laptop dev path still works), but production now goes through the new `M365SmtpEmailService` (Item 8b.1).
 - **What's still in flight on this branch (`docs/on-prem-pivot-plan`):** SHIP_PLAN edits (this commit). Source-code changes, file deletions, and the new install/runbook/TLS docs land on the subsequent branches in the sequence documented in `ON_PREM_PIVOT_PLAN.md`.
 
+### 2026-04-29 — On-prem pivot complete + ship-plan flips
+
+- **All seven on-prem-pivot branches landed on `dev`** by EOD 2026-04-29: `docs/on-prem-pivot-plan` (`0761a44`), `refactor/retire-azure-artifacts` (`e75d39a`), `refactor/strip-key-vault-deps` (`e36c728`), `feat/m365-smtp-email-service` (`a59f587`), `infra/on-prem-deploy-artifacts` (`10989b4`), `docs/on-prem-runbook` (`bcde280`), `docs/tls-and-networking` (`ef78a5c`). Plus the operator-facing `docs/install-verify-checklist` (`c6af052`).
+- **Items 8a–8e flipped to `[x]` on this branch** (`docs/ship-plan-flips`). Within Item 8b's acceptance checklist, three lines remain `[ ]` because they are install-time-deferred (manual smoke on a real WS box, NTFS ACL `icacls` confirmation, idempotency check). Per Louis's direction those install-time sign-offs are operator-side; they live in `INSTALL_AND_VERIFY_CHECKLIST.md` §5 and will get their `[x]` ticks during the actual install.
+- **What's NOT flipped:** Item 6 stays `[~]`. Its rebuilt on-prem checklist is intentionally awaiting per-line sign-off on the on-prem target — that is the install-time activity Louis owns.
+- **CI publish artifact** (a future signed-zip-per-release CD job) is on Louis's plate; not in scope for this pivot. Out-of-CI publish from a clean checkout is the documented operator path today (`INSTALL_AND_VERIFY_CHECKLIST.md` §4.1).
+
 ### 2026-04-28 — Item 4 notes
 
 - **Build was broken at session resume** with 10 `CS1061` errors on `ClaimsPrincipal.FindFirstValue` in `UserProvisioningService.cs`. `FindFirstValue` is an AspNetCore extension method (`Microsoft.AspNetCore.Authentication.Abstractions`); the Application layer is a plain class library and must not depend on AspNetCore. Fix was to switch to BCL `principal.FindFirst("sub")?.Value`. The same calls in `CurrentUserService.cs` (which lives in the API project) were left alone — that project does have AspNetCore.
@@ -566,3 +597,10 @@ Append `Item N completed YYYY-MM-DD — <commit SHA(s)>` lines here as items fin
 - Item 6 RESET 2026-04-29 — flipped back to `[~]` as part of the on-prem pivot; original Azure-flavored checklist retired and replaced with on-prem readiness checklist (all `[ ]`). Will re-flip to `[x]` after fresh per-line sign-off on the on-prem target.
 - Item 7 completed 2026-04-28 — port + adapt phase2 tests, +4 new test files (UserProvisioning, HealthChecks, LookupServices, AraSectionServices, frontend utils), coverlet + reportgenerator + PowerShell threshold gate, vitest config + coverage thresholds, CI test/coverage gates. SHAs in this branch's commit log.
 - On-prem pivot plan landed 2026-04-29 — branch `docs/on-prem-pivot-plan`: SHIP_PLAN edits (Item 6 reset + on-prem checklist; Item 8 retired; new Items 8a–8e added; Items 2 + 5 amended); commit-reference-convention scrub; superseded banners on `docs/PROGRESS.md` and `docs/EXECUTION_PLAN.md`; old Decision 1 section deleted from EXECUTION_PLAN.md.
+- Item 8a completed 2026-04-29 — branch 5 (`d5f4c9d`) created the prereqs section, branch 6 (`add92e9`) re-anchored it as Chapter 1 of the runbook
+- Item 8b completed 2026-04-29 — branch 5 (`d5f4c9d`) added `scripts/Install-AraOnPremises.ps1`, the `appsettings.Production.json.example` template, and the `.gitignore` entry; branch-5 follow-up (`68112dd`) added the dev-settings publish exclusion (with a build-time warning target) and switched cert binding from CN match to SHA-1 thumbprint pinning with full validation. Install-time smoke + idempotency verification stay open in the acceptance checklist (operator-deferred per Louis's direction).
+- Item 8b.1 completed 2026-04-29 — branch 4 (`1bfded7`) added `M365SmtpEmailService` via MailKit 4.16.0 (no auth — D6 source-IP allowlist), conditional DI registration in `InfrastructureServiceExtensions`, and 19 tests covering the DI fallback + the `SecureSocketOptions` startup validation
+- Item 8c completed 2026-04-29 — branch 6 (`add92e9`) expanded `ON_PREM_DEPLOYMENT.md` from the prereqs-only branch-5 placeholder into the full 7-chapter runbook (architecture, prereqs, pre-install gate, walkthrough, post-deploy, smoke, rollback, re-deploy)
+- Item 8d completed 2026-04-29 — branch 7 (`c6ed45f`) added `docs/ship/TLS_AND_NETWORKING.md` (4 chapters: summary, TLS / cert binding PowerShell + UI paths, outbound allowlist with the SQL MI 11000-11999 redirect-range callout, inbound rules)
+- Item 8e completed 2026-04-29 — covered in `ON_PREM_DEPLOYMENT.md` §2.1 (branch 6 `add92e9`) and reinforced as a hard-gate STOP in `INSTALL_AND_VERIFY_CHECKLIST.md` §2.7 (`13c4fa5`)
+- Install + verification checklist landed 2026-04-29 — `docs/ship/INSTALL_AND_VERIFY_CHECKLIST.md` (`13c4fa5`); 85 actionable checkboxes across 9 chapters; operator-facing companion to the runbook

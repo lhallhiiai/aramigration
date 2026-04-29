@@ -14,8 +14,9 @@
          (D4 = NTFS-protected JSON, no Key Vault).
       5. Sets restrictive NTFS ACLs on `appsettings.Production.json`: read for the IIS
          app pool identity + local Administrators only.
-      6. Creates / updates the IIS app pool + site, binds HTTPS:443 to the cert the
-         operator selects from `LocalMachine\My`.
+      6. Creates / updates the IIS app pool + site, binds HTTPS:443 to the cert
+         pinned by `-CertThumbprint` (resolved from `LocalMachine\My`, validated
+         for private-key + non-expired before any IIS change is attempted).
 
     Idempotent: re-running with the same parameters produces no destructive changes.
     Use `-Force` to overwrite an existing `appsettings.Production.json`. The IIS site
@@ -39,9 +40,19 @@
     Hostname for the IIS HTTPS binding. Examples: `ara.hii-tsd.com` (prod cert),
     `aradev.hii-tsd.com` (dev / test cert). Required.
 
-.PARAMETER CertSubject
-    Subject (CN) of the cert in `LocalMachine\My` to bind HTTPS:443 to. The script
-    locates the matching cert and uses its thumbprint. Required.
+.PARAMETER CertThumbprint
+    SHA-1 thumbprint (40 hex chars, case-insensitive) of the cert in `LocalMachine\My`
+    to bind HTTPS:443 to. Pinning by thumbprint instead of CN avoids the risk of
+    binding the wrong cert when more than one matches the hostname (e.g. an old +
+    a renewed cert co-resident in the store).
+
+    The script validates at startup that the thumbprint format is well-formed, that
+    a cert with that thumbprint exists in `LocalMachine\My`, that the cert has a
+    private key, and that it is not expired. Warns if the cert expires within 30 days.
+
+    Required for fresh installs. May be omitted on a re-run when the IIS site already
+    has an HTTPS binding pointing at a still-valid cert; in that case the existing
+    binding's thumbprint is reused.
 
 .PARAMETER AppPoolIdentity
     Optional. If empty, the IIS-virtual `IIS AppPool\<IisSiteName>` identity is used
@@ -90,7 +101,7 @@
 .EXAMPLE
     .\Install-AraOnPremises.ps1 -PublishBundlePath C:\Staging\ARA-Publish.zip `
         -SiteHostname ara.hii-tsd.com `
-        -CertSubject ara.hii-tsd.com `
+        -CertThumbprint A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6E7F8A9B0 `
         -SqlConnectionString "Server=tcp:sql-mi-host,1433;..." `
         -OktaIssuer "https://hii-test.oktapreview.com/oauth2/default" `
         -OktaAudience "api://default" `
@@ -115,7 +126,7 @@ param(
     [string] $IisSiteName = "ARA",
 
     [Parameter(Mandatory)] [string] $SiteHostname,
-    [Parameter(Mandatory)] [string] $CertSubject,
+    [string] $CertThumbprint,
     [string] $AppPoolIdentity,
 
     [Parameter(Mandatory)] [string] $SqlConnectionString,
@@ -345,20 +356,67 @@ function Set-IisSite {
         New-Item -Path $sslBinding -SslFlags 1 | Out-Null
 }
 
-function Resolve-CertThumbprint {
-    param([string] $Subject)
+function Resolve-Cert {
+    <#
+    .SYNOPSIS
+        Resolves the cert to bind. Returns @{ Thumbprint; Subject; NotAfter }.
+    .DESCRIPTION
+        Validates -CertThumbprint format, presence in LocalMachine\My, private key,
+        and expiry. If -CertThumbprint is empty AND the IIS site already has an HTTPS
+        binding, the existing binding's thumbprint is reused (a re-run after the
+        first install does not require the operator to repeat the thumbprint).
+        Aborts with a descriptive error before any IIS change is attempted.
+    #>
+    param(
+        [string] $Thumbprint,
+        [string] $SiteName
+    )
 
-    $cert = Get-ChildItem -Path "Cert:\LocalMachine\My" |
-        Where-Object { $_.Subject -match "CN=$([Regex]::Escape($Subject))(,|$)" } |
-        Sort-Object NotAfter -Descending |
-        Select-Object -First 1
-
-    if (-not $cert) {
-        throw "No certificate found in LocalMachine\My with CN matching '$Subject'. " +
-            "Import the internal-CA cert first (see TLS_AND_NETWORKING.md)."
+    if ([string]::IsNullOrWhiteSpace($Thumbprint)) {
+        if (Test-Path "IIS:\Sites\$SiteName") {
+            $existing = Get-WebBinding -Name $SiteName -Protocol https -ErrorAction SilentlyContinue
+            if ($existing -and $existing.certificateHash) {
+                $Thumbprint = $existing.certificateHash
+                Write-Host "  -CertThumbprint omitted; reusing existing binding's cert ($Thumbprint)." -ForegroundColor Yellow
+            }
+        }
+        if ([string]::IsNullOrWhiteSpace($Thumbprint)) {
+            throw "No -CertThumbprint provided and no existing IIS HTTPS binding found for site '$SiteName'. " +
+                "Pass -CertThumbprint with the SHA-1 thumbprint of the cert in LocalMachine\My."
+        }
     }
-    Write-Verbose "Selected cert thumbprint $($cert.Thumbprint), expires $($cert.NotAfter)"
-    return $cert.Thumbprint
+
+    # Normalize: strip whitespace + colons, uppercase
+    $normalized = ($Thumbprint -replace '[\s:]', '').ToUpperInvariant()
+    if ($normalized -notmatch '^[0-9A-F]{40}$') {
+        throw "-CertThumbprint '$Thumbprint' is not a valid SHA-1 thumbprint. Expected 40 hex characters."
+    }
+
+    $cert = Get-Item "Cert:\LocalMachine\My\$normalized" -ErrorAction SilentlyContinue
+    if (-not $cert) {
+        throw "No certificate found in LocalMachine\My with thumbprint '$normalized'. " +
+            "Import the internal-CA cert first (see ON_PREM_DEPLOYMENT.md section 6)."
+    }
+
+    if (-not $cert.HasPrivateKey) {
+        throw "Cert $normalized exists in LocalMachine\My but has no private key. " +
+            "Re-import using the .pfx (private key included) instead of the .cer (public key only)."
+    }
+
+    $now = Get-Date
+    if ($cert.NotAfter -lt $now) {
+        throw "Cert $normalized expired on $($cert.NotAfter.ToString('yyyy-MM-dd')). " +
+            "Renew the cert before installing."
+    }
+    if ($cert.NotAfter -lt $now.AddDays(30)) {
+        Write-Warning "Cert $normalized expires on $($cert.NotAfter.ToString('yyyy-MM-dd')) (within 30 days). Renew soon."
+    }
+
+    return [PSCustomObject]@{
+        Thumbprint = $normalized
+        Subject    = $cert.Subject
+        NotAfter   = $cert.NotAfter
+    }
 }
 
 function Test-SmtpConfiguration {
@@ -384,11 +442,17 @@ $serverCaption = Test-OsVersion
 Test-Prerequisites
 Test-SmtpConfiguration
 
+# Resolve the cert FIRST so an invalid -CertThumbprint aborts before we touch
+# the file system or IIS. -WhatIf shows the resolved thumbprint + subject.
+$cert = Resolve-Cert -Thumbprint $CertThumbprint -SiteName $IisSiteName
+
 Write-Host "Installing ARA on $serverCaption" -ForegroundColor Cyan
 Write-Host "  IisSiteName:    $IisSiteName"
 Write-Host "  InstallPath:    $InstallPath"
 Write-Host "  SiteHostname:   $SiteHostname"
-Write-Host "  CertSubject:    $CertSubject"
+Write-Host "  CertThumbprint: $($cert.Thumbprint)"
+Write-Host "  CertSubject:    $($cert.Subject)"
+Write-Host "  CertNotAfter:   $($cert.NotAfter.ToString('yyyy-MM-dd'))"
 Write-Host "  SmtpHost:       $(if ($SmtpHost) { $SmtpHost } else { '(unset; LoggingEmailService fallback)' })"
 
 $bundleSource = Resolve-PublishBundle -Path $PublishBundlePath
@@ -404,17 +468,15 @@ if ($PSCmdlet.ShouldProcess($configPath, "Generate appsettings.Production.json")
     Write-AppSettingsProduction -TemplatePath $templatePath -TargetPath $configPath -ForceOverwrite:$Force
 }
 
-$thumbprint = Resolve-CertThumbprint -Subject $CertSubject
-
 $resolvedIdentity = Set-IisAppPool -PoolName $IisSiteName -Identity $AppPoolIdentity
 
 if ($PSCmdlet.ShouldProcess($configPath, "Restrict NTFS ACLs")) {
     Set-AppSettingsAcl -Path $configPath -ReadIdentity $resolvedIdentity
 }
 
-if ($PSCmdlet.ShouldProcess("IIS:\Sites\$IisSiteName", "Create or update site bound to https://$SiteHostname")) {
+if ($PSCmdlet.ShouldProcess("IIS:\Sites\$IisSiteName", "Create or update site bound to https://$SiteHostname (cert $($cert.Thumbprint))")) {
     Set-IisSite -SiteName $IisSiteName -PhysicalPath $InstallPath `
-        -PoolName $IisSiteName -Hostname $SiteHostname -CertThumbprint $thumbprint
+        -PoolName $IisSiteName -Hostname $SiteHostname -CertThumbprint $cert.Thumbprint
 }
 
 Write-Host ""
@@ -422,7 +484,7 @@ Write-Host "Install complete." -ForegroundColor Green
 Write-Host "  Site:           IIS:\Sites\$IisSiteName"
 Write-Host "  PhysicalPath:   $InstallPath"
 Write-Host "  AppPool:        $IisSiteName (identity: $resolvedIdentity)"
-Write-Host "  HTTPS binding:  https://${SiteHostname}:443 (cert thumbprint $thumbprint)"
+Write-Host "  HTTPS binding:  https://${SiteHostname}:443 (cert thumbprint $($cert.Thumbprint))"
 Write-Host ""
 Write-Host "Verify next:"
 Write-Host "  iwr https://$SiteHostname/health/live  -SkipCertificateCheck   # expect 200, empty body"

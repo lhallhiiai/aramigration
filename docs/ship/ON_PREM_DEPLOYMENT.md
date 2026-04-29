@@ -141,14 +141,19 @@ Import-PfxCertificate -FilePath C:\Staging\ara-hii-tsd-com.pfx `
     -Password (Read-Host "PFX password" -AsSecureString)
 ```
 
-**Verify:**
+**Capture the thumbprint** — the install script binds by SHA-1 thumbprint (not by CN), so write down the thumbprint for the next step:
 
 ```powershell
 Get-ChildItem Cert:\LocalMachine\My |
     Where-Object Subject -match "CN=ara\.hii-tsd\.com" |
-    Format-List Subject, NotAfter, Thumbprint
-# Expect one row with NotAfter in the future and a Thumbprint to pass to -CertSubject.
+    Format-List Subject, NotAfter, Thumbprint, HasPrivateKey
+# Expect one row with HasPrivateKey=True, NotAfter in the future, and a 40-char Thumbprint
+# to pass to the installer as `-CertThumbprint <thumbprint>`.
 ```
+
+If `HasPrivateKey` is `False`, you imported the public-key `.cer` instead of the `.pfx` — re-import using the `.pfx`.
+
+The installer's `Resolve-Cert` step validates the thumbprint format (40 hex chars), confirms the cert exists in `LocalMachine\My`, requires a private key, and aborts on an expired cert (warning at <30 days to renewal). All checks run before any IIS change — invalid input fails fast with a descriptive error.
 
 WS 2019 vs WS 2022: identical.
 
@@ -156,8 +161,14 @@ WS 2019 vs WS 2022: identical.
 
 The internal-CA cert lifetime is set by your CA policy. When it nears expiry:
 
-1. Request the renewed cert.
-2. Import it into `LocalMachine\My` (step 6).
-3. Re-run `Install-AraOnPremises.ps1` with the same parameters; `Resolve-CertThumbprint` will pick the certificate with the latest `NotAfter`, and `Set-IisSite` will rebind 443 to the new thumbprint.
+1. Request the renewed cert from the internal CA.
+2. Import the `.pfx` into `LocalMachine\My` (step 6).
+3. Capture the **new** thumbprint (`Get-ChildItem Cert:\LocalMachine\My | Format-List Subject, NotAfter, Thumbprint`).
+4. Re-run `Install-AraOnPremises.ps1` with the same parameters except `-CertThumbprint <new-thumbprint>`. `Set-IisSite` rebinds 443 to the new thumbprint.
+5. Optionally: once the new binding is verified working, remove the expired cert from `LocalMachine\My` (`Remove-Item Cert:\LocalMachine\My\<old-thumbprint>`).
 
-No application restart is required for cert rotation alone, but re-running the install script is the safe path because it explicitly re-binds the SSL.
+A re-run of the installer is the safe path because it explicitly re-binds the SSL. Cert rotation alone does not require an app restart, but the IIS binding update is what makes the new cert actually serve.
+
+If `-CertThumbprint` is omitted on a re-run AND the IIS site already has an HTTPS binding pointing at a still-valid cert, the script reuses the existing binding's thumbprint (no rebind happens). This is convenient for re-runs that only update config values, not the cert.
+
+WS 2019 vs WS 2022: identical.

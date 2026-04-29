@@ -7,7 +7,7 @@ This document covers the readiness/liveness probes and the Application Insights 
 | Endpoint         | Predicate                       | Purpose                                                                                                       |
 | ---------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------- |
 | `GET /health/live`  | `_ => false` — runs no checks    | Liveness probe. Returns `200 Healthy` when the process can answer HTTP. K8s/Container Apps uses this to decide whether to restart the container. |
-| `GET /health/ready` | tagged `ready` — all three checks | Readiness probe. Returns JSON with overall status + per-check details. Front-door / load balancer should pull the instance out of rotation on `503`. |
+| `GET /health/ready` | tagged `ready` — sql + okta checks | Readiness probe. Returns JSON with overall status + per-check details. Front-door / load balancer should pull the instance out of rotation on `503`. |
 
 Status mapping for `/health/ready`:
 

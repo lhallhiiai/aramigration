@@ -4,6 +4,8 @@
 !.env.example
 appsettings.Development.json
 appsettings.Local.json
+appsettings.Production.json
+!appsettings.Production.json.example
 
 # .NET build output
 new/backend/**/bin/

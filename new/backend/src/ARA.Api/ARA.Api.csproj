@@ -11,6 +11,13 @@
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Ship the on-prem config template inside the publish bundle so the
+         on-prem install script (scripts/Install-AraOnPremises.ps1) can read it
+         from the publish root and write appsettings.Production.json next to it. -->
+    <Content Include="appsettings.Production.json.example" CopyToPublishDirectory="Always" />
+  </ItemGroup>
+
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>

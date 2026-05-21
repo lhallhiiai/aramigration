@@ -39,6 +39,10 @@
 .PARAMETER BulkCopyTimeout
     Timeout in seconds for each SqlBulkCopy operation. Default: 600 (10 minutes).
 
+.PARAMETER SkipAttachments
+    Skip migrating attachments (binary file data). Use this for faster migration
+    when you don't need the legacy PDF files.
+
 .EXAMPLE
     .\Invoke-AraDataMigration.ps1 -SourceConnectionString "Server=corpdb;Database=ARA;Integrated Security=True;"
 
@@ -46,6 +50,12 @@
     .\Invoke-AraDataMigration.ps1 `
         -SourceConnectionString "Server=corpdb;Database=ARA;Integrated Security=True;" `
         -TargetConnectionString "Server=localhost;Database=hii-ara-dev-db;Integrated Security=True;"
+
+.EXAMPLE
+    .\Invoke-AraDataMigration.ps1 `
+        -SourceConnectionString "Server=corpdb;Database=ARA;Integrated Security=True;" `
+        -TargetConnectionString "Server=localhost;Database=hii-ara-dev-db;Integrated Security=True;" `
+        -SkipAttachments
 #>
 
 [CmdletBinding()]
@@ -63,7 +73,10 @@ param(
     [string]$TargetConnectionString,
 
     [Parameter()]
-    [int]$BulkCopyTimeout = 600
+    [int]$BulkCopyTimeout = 600,
+
+    [Parameter()]
+    [switch]$SkipAttachments
 )
 
 Set-StrictMode -Version Latest
@@ -225,10 +238,30 @@ function Copy-ToTarget {
         $bulk.BatchSize = 5000
 
         foreach ($key in $ColumnMappings.Keys) {
-            [void]$bulk.ColumnMappings.Add($key, $ColumnMappings[$key])
+            try {
+                [void]$bulk.ColumnMappings.Add($key, $ColumnMappings[$key])
+            }
+            catch {
+                Write-Host "  ERROR adding column mapping: '$key' -> '$($ColumnMappings[$key])'" -ForegroundColor Red
+                throw
+            }
         }
 
-        $bulk.WriteToServer($Data)
+        try {
+            $bulk.WriteToServer($Data)
+        }
+        catch {
+            Write-Host "  ERROR during WriteToServer:" -ForegroundColor Red
+            Write-Host "  Source columns in DataTable:" -ForegroundColor Yellow
+            foreach ($col in $Data.Columns) {
+                Write-Host "    - $($col.ColumnName)" -ForegroundColor Gray
+            }
+            Write-Host "  Column mappings:" -ForegroundColor Yellow
+            foreach ($key in $ColumnMappings.Keys) {
+                Write-Host "    - '$key' -> '$($ColumnMappings[$key])'" -ForegroundColor Gray
+            }
+            throw
+        }
         Write-Host "  $TargetTableName : $($Data.Rows.Count) rows copied"
     }
     finally {
@@ -520,7 +553,7 @@ FROM ranked
 "@ `
     -ColumnMappings @{
         'id_user'       = 'UserId'
-        'EntraObjectId' = 'EntraObjectId'
+        'EntraObjectId' = 'ExternalUserId'
         'emplID'        = 'EmployeeId'
         'LegacyOprid'   = 'LegacyOprid'
         'DisplayName'   = 'DisplayName'
@@ -542,11 +575,11 @@ $tableResults['User'] = $count; $totalRows += $count
 # Insert dev user for local development
 Write-Host "  Inserting dev user (dev-user-00000000)..."
 Invoke-TargetSql -Sql @"
-IF NOT EXISTS (SELECT 1 FROM dbo.[User] WHERE EntraObjectId = N'dev-user-00000000')
+IF NOT EXISTS (SELECT 1 FROM dbo.[User] WHERE ExternalUserId = N'dev-user-00000000')
 BEGIN
     SET IDENTITY_INSERT dbo.[User] ON;
     DECLARE @maxId INT = (SELECT ISNULL(MAX(UserId), 0) + 1 FROM dbo.[User]);
-    INSERT INTO dbo.[User] (UserId, EntraObjectId, DisplayName, FirstName, LastName, Email, RoleId, JobTitleId, IsInactive)
+    INSERT INTO dbo.[User] (UserId, ExternalUserId, DisplayName, FirstName, LastName, Email, RoleId, JobTitleId, IsInactive)
     VALUES (@maxId, N'dev-user-00000000', N'Dev User', N'Dev', N'User', N'dev@local.dev', 1, 1, 0);
     SET IDENTITY_INSERT dbo.[User] OFF;
 END
@@ -878,10 +911,14 @@ FROM dbo.araAppList
 $tableResults['AraApprovalAssignment'] = $count; $totalRows += $count
 
 # --- AraAttachment (with binary) ---
-Write-Host "`nMigrating attachments -> AraAttachment (with binary data)..."
+if ($SkipAttachments) {
+    Write-Host "`nSkipping attachments migration (SkipAttachments flag set)..." -ForegroundColor Yellow
+    $tableResults['AraAttachment'] = 0
+} else {
+    Write-Host "`nMigrating attachments -> AraAttachment (with binary data)..."
 
-# Add temporary column for binary data if it does not exist
-Invoke-TargetSql -Sql @"
+    # Add temporary column for binary data if it does not exist
+    Invoke-TargetSql -Sql @"
 IF NOT EXISTS (
     SELECT 1 FROM sys.columns
     WHERE object_id = OBJECT_ID('dbo.AraAttachment') AND name = 'LegacyBinaryFile'
@@ -890,10 +927,10 @@ BEGIN
     ALTER TABLE dbo.AraAttachment ADD LegacyBinaryFile VARBINARY(MAX) NULL;
 END
 "@
-Write-Host "  LegacyBinaryFile column ensured on AraAttachment."
+    Write-Host "  LegacyBinaryFile column ensured on AraAttachment."
 
-$count = Migrate-Table -LegacyName 'attachments' -TargetName 'AraAttachment' `
-    -SelectQuery @"
+    $count = Migrate-Table -LegacyName 'attachments' -TargetName 'AraAttachment' `
+        -SelectQuery @"
 SELECT
     id_attachment,
     id_ara,
@@ -906,18 +943,19 @@ SELECT
     binary_file
 FROM dbo.attachments
 "@ `
-    -ColumnMappings @{
-        'id_attachment' = 'AraAttachmentId'
-        'id_ara'        = 'AraId'
-        'id_user'       = 'UploadedByUserId'
-        'filename'      = 'FileName'
-        'StoragePath'   = 'StoragePath'
-        'Filesize'      = 'FileSize'
-        'MimeType'      = 'MimeType'
-        'UploadedAt'    = 'UploadedAt'
-        'binary_file'   = 'LegacyBinaryFile'
-    }
-$tableResults['AraAttachment'] = $count; $totalRows += $count
+        -ColumnMappings @{
+            'id_attachment' = 'AraAttachmentId'
+            'id_ara'        = 'AraId'
+            'id_user'       = 'UploadedByUserId'
+            'filename'      = 'FileName'
+            'StoragePath'   = 'StoragePath'
+            'Filesize'      = 'FileSize'
+            'MimeType'      = 'MimeType'
+            'UploadedAt'    = 'UploadedAt'
+            'binary_file'   = 'LegacyBinaryFile'
+        }
+    $tableResults['AraAttachment'] = $count; $totalRows += $count
+}
 
 # --- Delegation ---
 $count = Migrate-Table -LegacyName 'delegation' -TargetName 'Delegation' `

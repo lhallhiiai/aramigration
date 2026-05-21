@@ -65,6 +65,7 @@ explicit instruction:
 - All functions over 20 lines should be flagged and a refactor suggested.
 - All scripts that are created my only be powershell
 - Never update or add any files in the folder named old or any of its subdirectories
+- All SQL Server connection strings must always use `TrustServerCertificate=True`. Never set it to False. This is required for local and Azure connectivity in this environment.
 
 ## Architecture Patterns
 

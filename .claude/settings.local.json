@@ -8,7 +8,9 @@
       "Bash(npm run:*)",
       "Bash(python3 -c ':*)",
       "Bash(python -c ':*)",
-      "Bash(pip install:*)"
+      "Bash(pip install:*)",
+      "Bash(xargs ls -la)",
+      "Bash(dotnet user-secrets *)"
     ]
   }
 }

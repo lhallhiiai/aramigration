@@ -13,6 +13,10 @@
 # Navigate to frontend directory
 Set-Location "$PSScriptRoot\new\frontend"
 
+# Install dependencies if needed
+Write-Host "`nInstalling dependencies..." -ForegroundColor Cyan
+npm ci
+
 # Start the dev server
 Write-Host "`nStarting ARA Frontend Dev Server..." -ForegroundColor Green
 Write-Host "URL: http://localhost:5173" -ForegroundColor Yellow

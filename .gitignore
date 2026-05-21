@@ -28,7 +28,7 @@ aramigration.sln
 
 # IDE and OS
 .vs/
-.vscode/settings.json
+.vscode/
 .DS_Store
 Thumbs.db
 *.user

@@ -15,8 +15,9 @@
 $env:ASPNETCORE_ENVIRONMENT = "Development"
 $env:ASPNETCORE_URLS = "http://localhost:5081"
 
-# Navigate to backend directory
-Set-Location "$PSScriptRoot\new\backend"
+# Navigate to backend directory (Join-Path produces OS-correct separators)
+$backendDir = Join-Path $PSScriptRoot "new" "backend"
+Set-Location $backendDir
 
 # Kill any existing instances
 Write-Host "Checking for existing ARA.Api processes..." -ForegroundColor Cyan
@@ -35,6 +36,15 @@ Write-Host "Environment: Development" -ForegroundColor Yellow
 Write-Host "URL: http://localhost:5081" -ForegroundColor Yellow
 Write-Host "`nPress Ctrl+C to stop the API`n" -ForegroundColor Cyan
 
+# Build the project so the DLL exists
+Write-Host "Building ARA.Api..." -ForegroundColor Cyan
+dotnet build ARA.slnx --configuration Debug --nologo -v q
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Build failed. Aborting." -ForegroundColor Red
+    exit 1
+}
+
 # Change to the API project directory where appsettings.json files live
-Set-Location src\ARA.Api
-dotnet bin\Debug\net10.0\ARA.Api.dll
+$apiDir = Join-Path $backendDir "src" "ARA.Api"
+Set-Location $apiDir
+dotnet "bin/Debug/net10.0/ARA.Api.dll"

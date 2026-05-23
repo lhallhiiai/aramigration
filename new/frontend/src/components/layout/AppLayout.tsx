@@ -7,14 +7,18 @@ import { EnvironmentBanner } from "@/components/EnvironmentBanner";
 export function AppLayout() {
   return (
     <SidebarProvider>
-      <AppSidebar />
-      <SidebarInset>
-        <EnvironmentBanner />
+      <div className="flex h-screen w-full flex-col overflow-hidden">
         <TopBar />
-        <main className="flex-1 overflow-auto p-6">
-          <Outlet />
-        </main>
-      </SidebarInset>
+        <EnvironmentBanner />
+        <div className="flex flex-1 overflow-hidden">
+          <AppSidebar />
+          <SidebarInset className="overflow-auto">
+            <div className="p-6">
+              <Outlet />
+            </div>
+          </SidebarInset>
+        </div>
+      </div>
     </SidebarProvider>
   );
 }

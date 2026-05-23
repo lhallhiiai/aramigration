@@ -18,7 +18,7 @@ export function QuickSearch() {
     <div className="relative w-64">
       <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
       <Input
-        placeholder="Quick search ARA or JAMIS ID..."
+        placeholder="Quick search ARA ID or title…"
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={handleKeyDown}

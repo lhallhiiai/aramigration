@@ -130,6 +130,7 @@ State: TanStack Query for server state, Zustand for global, `useState` for local
   - Format: `<type>(<scope>): <description>` (≤72 chars, lowercase, no period)
   - Types: `feat`, `fix`, `data`, `infra`, `refactor`, `test`, `docs`, `chore`, `style`
   - Body: Reference ColdFusion files replaced when applicable
+  - **NEVER include `Co-authored-by` trailers or any references to AI models, tools, or assistants in commit messages**
 - **Never commit:** secrets, connection strings, build artifacts, `node_modules`, `bin/`, `obj/`
 - **Never commit automatically:** Always wait for explicit instruction
 

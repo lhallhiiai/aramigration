@@ -1,166 +1,147 @@
 # AGENTS.md — ARA Migration Project
 
-Quick-start context for AI agents working in this repository.
+Quick-start context for AI agents. Read `CLAUDE.md` for full conventions. This file covers traps and high-signal workflow.
 
 ---
 
 ## What This Is
 
-ColdFusion → .NET 10 + React migration. The legacy app is read-only reference in `legacy/`. New stack is in `new/backend/` (.NET) and `new/frontend/` (React + TypeScript).
+ColdFusion → .NET 10 + React migration. Legacy app is read-only in `legacy/`. New stack: `new/backend/` (.NET Clean Architecture + Dapper) and `new/frontend/` (Vite + React 19 + TypeScript strict).
 
-**Authority on behavior:** `legacy/ARAUserGuideV2.md` is the single source of truth. Before implementing any feature, read the relevant section. If behavior is unclear or missing from the guide, stop and ask — never assume.
-
----
-
-## Stack & Structure
-
-### Backend (.NET 10)
-
-- **Location:** `new/backend/`
-- **Solution:** `ARA.slnx` (XML solution format)
-- **Architecture:** Clean Architecture — API → Application → Domain → Infrastructure
-- **Projects:**
-  - `ARA.Api` — Controllers, thin, no business logic
-  - `ARA.Application` — Services, DTOs, `Result<T>` pattern (no exceptions for business failures)
-  - `ARA.Domain` — Entities, enums, repository interfaces (no dependencies)
-  - `ARA.Infrastructure` — Dapper repos, connection factory
-  - `ARA.Application.Tests` + `ARA.Infrastructure.Tests` — xUnit tests
-- **Data access:** Dapper only, **always use stored procedures** (never inline SQL)
-- **Connection string:** `AraDatabase` in appsettings (use `dotnet user-secrets` locally)
-- **Features by domain:**
-  - `Application/Ara/` — core ARA workflow
-  - `Application/Approval/` — approver chain logic
-  - `Application/Clin/` — CLIN worksheet (Non-Early Start only)
-  - `Application/Document/` — PDF upload
-  - `Application/Email/` — notifications
-  - Other: `Category`, `Delegation`, `JobTitle`, `RejectionReason`, `Users`
-
-### Frontend (React + TypeScript)
-
-- **Location:** `new/frontend/`
-- **Stack:** Vite + React 19 + TypeScript strict + Tailwind CSS v4 + shadcn/ui v3
-- **Path alias:** `@/` → `src/`
-- **Folders:**
-  - `components/ui/` — shadcn base components (never modify directly)
-  - `components/[Feature]/` — feature components (e.g., `Ara/`, `CreateAra/`)
-  - `hooks/` — custom hooks (always named `use[Resource]`)
-  - `services/` — API fetch wrappers (not hooks)
-  - `types/` — shared interfaces
-  - `store/` — Zustand global state
-  - `pages/` — routing
-  - `lib/` — utilities (validation, formatting)
-- **State:** TanStack Query for server state, Zustand for global client state, `useState` for local UI only
-- **API proxy:** `/api` → `http://localhost:5081` (Vite dev server proxy in `vite.config.ts`)
+**Authority on behavior:** `legacy/ARAUserGuideV2.md` is the single source of truth. Before implementing any feature, read the relevant section. If unclear, stop and ask — never assume.
 
 ---
 
-## Commands
+## Timeout / Token Rules
 
-### Backend
+This machine times out frequently; interrupted work must be restartable with minimal re-work. These are hard rules, no exceptions:
+
+- **Smallest possible steps.** Every plan is an ordered checklist of tiny, independently completable steps. Each step does one thing and leaves the repo in a known state.
+- **Restartable via the plan file.** Track progress as a checklist inside the plan `.md` (`- [ ]` / `- [x]`). After each step, mark it done. On restart, read only the plan file to find the next unchecked step — do not re-explore or re-read files already covered by completed steps.
+- **Minimize tokens.** Do not re-read files or re-run discovery you have already done. Prefer narrow, targeted reads/edits over large ones. Batch independent tool calls.
+- **Minimize tool/API output.** Request and return the least data needed (narrow file reads with offsets/limits, scoped searches, quiet build output, no dumping large files). This applies to agent tool calls, not app runtime behavior.
+- **No guessing.** If a step is ambiguous, stop and ask rather than assume.
+
+---
+
+## Critical Non-Negotiables
+
+- **No inline SQL.** Always use stored procedures. Create new ones in `scripts/sql/003_stored_procedures.sql` (idempotent `CREATE OR ALTER`). Deploy with `.\scripts\Invoke-AraMigration.ps1`.
+- **No `var` in C#.** Explicit types only.
+- **No `any` in TypeScript.** Strict mode enforced.
+- **Never modify** `legacy/`, `old/`, or `components/ui/` (shadcn vendored).
+- **Result<T> pattern** for service methods. Never throw exceptions for business failures. `Result<T>.Failure("message")`.
+- **Scripts:** PowerShell only. Never bash.
+- **Git:** Never commit automatically. Always wait for explicit instruction.
+
+---
+
+## Commands (Windows PowerShell)
+
+### Quick Start
 
 ```powershell
-cd new/backend
+# Start backend (from repo root)
+.\start-backend.ps1
+# → http://localhost:5081
 
-# Build
-dotnet build ARA.slnx
-
-# Format check (CI enforces this)
-dotnet format ARA.slnx --verify-no-changes
-
-# Test (all)
-dotnet test ARA.slnx
-
-# Run API (uses user-secrets for connection string)
-dotnet run --project src/ARA.Api/ARA.Api.csproj
-# API runs on http://localhost:5081
+# Start frontend (from repo root)
+.\start-frontend.ps1
+# → http://localhost:5173 (proxies /api to backend)
 ```
 
-### Frontend
+### Backend (from `new/backend/`)
 
 ```powershell
-cd new/frontend
+dotnet build ARA.slnx                            # Build
+dotnet format ARA.slnx --verify-no-changes       # Format check (CI gate)
+dotnet test ARA.slnx                             # Run all tests
+dotnet run --project src/ARA.Api/ARA.Api.csproj  # Start API manually
+```
 
-# Install
-npm ci
+### Frontend (from `new/frontend/`)
 
-# Dev server (proxies /api to backend)
-npm run dev
-
-# Lint (CI enforces this)
-npm run lint
-
-# Build
-npm run build
-
-# Test (all)
-npm run test
-
-# Test with coverage (CI checks ≥70% on lib/ modules)
-npm run test:coverage
+```powershell
+npm ci                    # Install deps
+npm run dev               # Dev server
+npm run lint              # Lint (CI gate)
+npm run build             # Build
+npm run test              # All tests
+npm run test:coverage     # Coverage (≥70% on src/lib/**)
 ```
 
 ### Database
 
 ```powershell
-# Run migrations (from repo root)
+# From repo root
 .\scripts\Invoke-AraMigration.ps1
 
-# Local SQL Server example:
+# Local SQL Server:
 .\scripts\Invoke-AraMigration.ps1 -ConnectionString "Server=localhost;Database=ARA_New;Integrated Security=True;TrustServerCertificate=True;"
 
-# Azure SQL (uses az CLI account):
+# Azure SQL (after az login):
 az login
 .\scripts\Invoke-AraMigration.ps1
 ```
 
-Migrations are in `scripts/sql/`: `001_tables.sql`, `002_seed_data.sql`, `003_stored_procedures.sql` (all idempotent).
+Migrations: `scripts/sql/001_tables.sql`, `002_seed_data.sql`, `003_stored_procedures.sql` (all idempotent).
 
 ---
 
-## Non-Negotiables
+## Stack Structure
 
-From `CLAUDE.md`:
+### Backend (Clean Architecture)
 
-- **C#:** No `var`. Explicit types. XML doc comments on all public members. No business logic in controllers. `Result<T>` for service methods (never throw for business failures).
-- **TypeScript:** No `any`. Strict mode. No inline styles (Tailwind only). Props interface named `[Component]Props` in same file.
-- **Data access:** Stored procedures only (never inline SQL). Parameterized always.
-- **Testing:** xUnit (backend), Vitest + React Testing Library (frontend). Test naming: `MethodName_StateUnderTest_ExpectedBehavior`. Mock only at repository layer.
-- **Scripts:** PowerShell only (never bash).
-- **Read-only zones:** Never touch `legacy/`, `old/`, or `components/ui/` (shadcn vendored code).
+`new/backend/` — .NET 10, Dapper, stored procedures only
+
+- **ARA.Api** — Controllers (thin), FluentValidation, `DevAuthenticationHandler`, hosted services
+- **ARA.Application** — Services (business logic), DTOs, `Result<T>` pattern
+- **ARA.Domain** — Entities, enums, repository interfaces (zero dependencies)
+- **ARA.Infrastructure** — Dapper repos, SQL connection factory
+- **Tests** — xUnit in `ARA.Application.Tests` + `ARA.Infrastructure.Tests`
+
+Connection string: `AraDatabase` in appsettings or `dotnet user-secrets` locally.
+
+### Frontend (React 19 + TypeScript)
+
+`new/frontend/` — Vite + Tailwind CSS v4 + shadcn/ui v3
+
+- **`components/ui/`** — shadcn base (never modify)
+- **`components/[Feature]/`** — feature components (`Ara/`, `CreateAra/`, `layout/`, `shared/`)
+- **`hooks/`** — custom hooks (prefix `use[Resource]`)
+- **`services/`** — API wrappers (not hooks)
+- **`lib/`** — validation, formatting, constants
+- **`store/`** — Zustand global state
+- **`types/`** — shared interfaces
+
+Path alias: `@/` → `src/`
+
+State: TanStack Query for server state, Zustand for global, `useState` for local UI.
 
 ---
 
 ## Git Workflow
 
-- **Branches:** `[type]/[short-description]` (e.g., `feature/pm-tab`, `fix/clin-calculation`)
+- **NEVER push directly to `dev`.** No exceptions. All work must be committed on a feature branch and merged via merge/pull request.
+- **Feature branch names must NOT contain a hyphen (`-`).** No exceptions. Use another separator (e.g. `_` or camelCase), for example `addDeliveryOffice` or `add_delivery_office`, never `add-delivery-office`.
+- **Branches:** `[type]/[short_description]` (e.g., `feature/pm_tab`, `fix/clin_calculation`)
   - Types: `feature`, `fix`, `data`, `infra`, `refactor`, `test`, `docs`, `chore`
 - **Commits:** Conventional Commits enforced by CI (`commitlint.config.cjs`)
   - Format: `<type>(<scope>): <description>` (≤72 chars, lowercase, no period)
   - Types: `feat`, `fix`, `data`, `infra`, `refactor`, `test`, `docs`, `chore`, `style`
   - Body: Reference ColdFusion files replaced when applicable
-- **Never commit:** secrets, connection strings, build artifacts, `node_modules`, `bin/`, `obj/` (see `.gitignore`)
-- **Never commit automatically:** Always wait for explicit instruction before running `git commit`
+- **Never commit:** secrets, connection strings, build artifacts, `node_modules`, `bin/`, `obj/`
+- **Never commit automatically:** Always wait for explicit instruction
 
 ---
 
-## CI/CD
+## CI Checks (.github/workflows/pr-validation.yml)
 
-GitHub Actions: `.github/workflows/pr-validation.yml`
+All three jobs must pass:
 
-**Backend job:**
-- Build Release
-- Format check (`dotnet format --verify-no-changes`)
-- Test with coverage (≥35% line threshold in `Test-CoverageThreshold.ps1`)
-
-**Frontend job:**
-- Lint (`npm run lint`)
-- Build
-- Test with coverage (≥70% line/branch/function/statement on `src/lib/**`)
-
-**Commitlint job:**
-- Validates every commit in PR against Conventional Commits
-
-All checks must pass before merge.
+1. **Backend:** Build Release + `dotnet format --verify-no-changes` + tests (≥35% line coverage)
+2. **Frontend:** Lint + build + tests (≥70% coverage on `src/lib/**`)
+3. **Commitlint:** All commits match Conventional Commits
 
 ---
 

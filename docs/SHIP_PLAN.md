@@ -517,7 +517,7 @@ Append findings, follow-ups, and gotchas here as items complete. Keep entries da
 ### 2026-04-28 — Item 2 notes
 
 - `appsettings.Development.json` was already gitignored (and never committed to history) — the local DB password discovered there is local-only; no rotation needed. The supported local-dev path going forward is `dotnet user-secrets` (UserSecretsId=`ara-api-dev`).
-- `OKTA.md` at the repo root still references the test-tenant Okta issuer + client IDs as part of its setup walkthrough. Item 2 acceptance scope is `new/` only; repo-root docs were left alone. Same values are in `CLAUDE.md`, treated as test-tenant configuration documentation rather than secrets. If anyone wants those moved out of docs too, file a follow-up.
+- `docs/OKTA.md` still references the test-tenant Okta issuer + client IDs as part of its setup walkthrough. Item 2 acceptance scope is `new/` only; repo-root docs were left alone. Same values are in `CLAUDE.md`, treated as test-tenant configuration documentation rather than secrets. If anyone wants those moved out of docs too, file a follow-up.
 - `Azure.Identity` was bumped from a candidate `1.16.0` to `1.17.1` to satisfy the existing transitive constraint from `Microsoft.Data.SqlClient` — caught at first build.
 - Vite env vars are typed via `new/frontend/src/vite-env.d.ts` so `okta-config.ts` doesn't need any `any` casts — CLAUDE.md "no `any`" rule preserved.
 - Production Key Vault references the Container App and Key Vault resources that don't exist yet (Item 8 [DEFERRED]). Code is ready; resource provisioning is the remaining blocker for Item 6's prod-readiness checklist.

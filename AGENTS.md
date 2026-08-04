@@ -42,11 +42,11 @@ This machine times out frequently; interrupted work must be restartable with min
 
 ```powershell
 # Start backend (from repo root)
-.\start-backend.ps1
+.\scripts\start-backend.ps1
 # → http://localhost:5081
 
 # Start frontend (from repo root)
-.\start-frontend.ps1
+.\scripts\start-frontend.ps1
 # → http://localhost:5173 (proxies /api to backend)
 ```
 
@@ -217,9 +217,9 @@ These differ from typical CRUD apps — always enforce:
 ## Reference Docs
 
 - **CLAUDE.md** — full coding conventions, architecture, git rules, domain terminology (924 lines)
-- **OUTSTANDINGWORK.md** — current project status, Phase 1 (complete), Phase 2 (complete), remaining work
+- **docs/OUTSTANDINGWORK.md** — current project status, Phase 1 (complete), Phase 2 (complete), remaining work
 - **legacy/ARAUserGuideV2.md** — authoritative source of truth for all application behavior (408 lines)
-- **PRODUCT_OWNER_QUESTIONS.md** — resolved ambiguities (reference if business rules are unclear)
+- **docs/PRODUCT_OWNER_QUESTIONS.md** — resolved ambiguities (reference if business rules are unclear)
 
 ---
 

@@ -14,7 +14,7 @@ The full stack runs locally in dev mode (Okta auth disabled; `DevAuthenticationH
 
 - Backend: `dotnet run --project src/ARA.Api/ARA.Api.csproj` → `http://localhost:5081`
 - Frontend: `npm run dev` → `http://localhost:5173`
-- Start scripts: `scripts/start-backend.ps1` / `scripts/start-frontend.ps1`
+- Start scripts: `scripts\start-backend.ps1` / `scripts\start-frontend.ps1` (can be run from any directory)
 
 ### Frontend — What Exists
 
@@ -166,7 +166,7 @@ Dev mode uses `DevAuthenticationHandler` (bypasses Okta entirely). To enable rea
 
 ### On-prem deployment
 
-Runbooks and installation scripts exist in `docs/` and `scripts/`. See `ARA_DEPLOYMENT_CHECKLIST.md`.
+Runbooks and installation scripts exist in `docs/` and `scripts/`. See `docs/ARA_DEPLOYMENT_CHECKLIST.md`.
 
 ### CORS
 

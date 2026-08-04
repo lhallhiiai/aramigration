@@ -6,17 +6,33 @@
 .DESCRIPTION
     Sets required environment variables and launches the API on http://localhost:5081.
     This script works around antivirus issues by running the DLL directly instead of using dotnet run.
+    Can be run from any directory - automatically finds repository root.
 
 .EXAMPLE
     .\start-backend.ps1
+    # Or from anywhere:
+    C:\git\aramigration\scripts\start-backend.ps1
 #>
 
 # Set environment variables
 $env:ASPNETCORE_ENVIRONMENT = "Development"
 $env:ASPNETCORE_URLS = "http://localhost:5081"
 
+# Find repository root (works from any directory)
+# If script is in the repo, use git from current location
+# Otherwise, use the script's location to find the repo
+Push-Location $PSScriptRoot
+$repoRoot = git rev-parse --show-toplevel 2>$null
+Pop-Location
+
+if (-not $repoRoot) {
+    Write-Host "Error: Could not find git repository. Please ensure the script is in the aramigration repository." -ForegroundColor Red
+    exit 1
+}
+$repoRoot = $repoRoot -replace '/', '\'
+
 # Navigate to backend directory (Join-Path produces OS-correct separators)
-$backendDir = Join-Path $PSScriptRoot "new" "backend"
+$backendDir = Join-Path $repoRoot "new" "backend"
 Set-Location $backendDir
 
 # Kill any existing instances
